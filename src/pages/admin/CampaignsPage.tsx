@@ -79,8 +79,17 @@ export const CampaignsPage: React.FC = () => {
     }
   };
 
+  const getBaseUrl = () => {
+    const customSiteUrl = import.meta.env.VITE_SITE_URL;
+    if (customSiteUrl && customSiteUrl.trim() !== '') {
+      return customSiteUrl.replace(/\/+$/, '');
+    }
+    return typeof window !== 'undefined' ? window.location.origin : '';
+  };
+
   const handleCopyLink = (slug: string, id: string) => {
-    const url = `${window.location.origin}/c/${slug}`;
+    const baseUrl = getBaseUrl();
+    const url = `${baseUrl}/c/${slug}`;
     navigator.clipboard.writeText(url);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
