@@ -1,0 +1,147 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
+import { Input } from '@/components/common/Input';
+import { Button } from '@/components/common/Button';
+import { Sparkles, Lock, Mail, AlertCircle, ArrowLeft } from 'lucide-react';
+
+export const AdminLogin: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, isAdmin, signInWithPassword, signUpWithPassword } = useAuth();
+
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      navigate('/admin', { replace: true });
+    }
+  }, [user, isAdmin, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMsg(null);
+    setIsLoading(true);
+
+    if (isSignUp) {
+      const { error: signUpError } = await signUpWithPassword(email, password);
+      setIsLoading(false);
+      if (signUpError) {
+        setError(signUpError.message);
+      } else {
+        setSuccessMsg('Account created successfully! Logging you into the admin console...');
+        setTimeout(() => {
+          navigate('/admin');
+        }, 1200);
+      }
+    } else {
+      const { error: signInError } = await signInWithPassword(email, password);
+      setIsLoading(false);
+      if (signInError) {
+        setError(signInError.message || 'Invalid email or password.');
+      } else {
+        navigate('/admin');
+      }
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-background text-slate-100 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient background glow */}
+      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-amber-500/10 blur-[120px] pointer-events-none" />
+
+      {/* Back to Game */}
+      <div className="absolute top-6 left-6">
+        <Link
+          to="/"
+          className="flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Game</span>
+        </Link>
+      </div>
+
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md relative z-10">
+        {/* Brand Icon */}
+        <div className="flex flex-col items-center text-center mb-6">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black shadow-glow-sm mb-3">
+            <Sparkles className="w-7 h-7" />
+          </div>
+          <h1 className="text-2xl font-black text-white font-display">IWILLWIN</h1>
+          <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mt-0.5">
+            Admin Management Console
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center space-x-2">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2">
+            <Sparkles className="w-4 h-4 flex-shrink-0" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
+          <Input
+            label="Admin Email"
+            type="email"
+            placeholder="admin@iwillwin.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            leftIcon={<Mail className="w-4 h-4" />}
+            required
+            autoComplete="email"
+          />
+
+          <Input
+            label="Password"
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            leftIcon={<Lock className="w-4 h-4" />}
+            required
+            autoComplete={isSignUp ? 'new-password' : 'current-password'}
+          />
+
+          <Button
+            type="submit"
+            isLoading={isLoading}
+            variant="gold"
+            size="lg"
+            className="w-full font-bold shadow-glow-sm mt-2"
+          >
+            {isSignUp ? 'Create Admin Account' : 'Sign In to Admin Portal'}
+          </Button>
+        </form>
+
+        <div className="mt-6 pt-4 border-t border-slate-800 text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setIsSignUp(!isSignUp);
+              setError(null);
+              setSuccessMsg(null);
+            }}
+            className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors"
+          >
+            {isSignUp
+              ? 'Already have an admin account? Sign In'
+              : 'Need another admin account? Register New Admin'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
