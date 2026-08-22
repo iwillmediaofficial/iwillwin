@@ -11,7 +11,6 @@ import {
   Zap,
   Flame,
   CheckCircle2,
-  Lock,
 } from 'lucide-react';
 
 const DEMO_WHATSAPP_NUMBER = '91812654111';
@@ -38,15 +37,7 @@ export const LandingPage: React.FC = () => {
           </span>
         </div>
 
-        <div className="flex items-center space-x-3 sm:space-x-4">
-          <Link
-            to="/admin/login"
-            className="text-xs sm:text-sm font-semibold text-slate-400 hover:text-white transition-colors flex items-center space-x-1 px-3 py-2 rounded-xl hover:bg-slate-900 border border-transparent hover:border-slate-800"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Admin Portal</span>
-          </Link>
-
+        <div className="flex items-center space-x-3">
           <a href={DEMO_WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
             <Button
               variant="whatsapp"
@@ -245,10 +236,6 @@ export const LandingPage: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4 text-slate-400">
-          <Link to="/admin/login" className="hover:text-amber-300 transition-colors">
-            Admin Login
-          </Link>
-          <span>•</span>
           <a
             href={DEMO_WHATSAPP_URL}
             target="_blank"
