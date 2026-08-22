@@ -280,7 +280,12 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
 
       {/* Date of Birth (Rendered only when collect_dob is enabled) */}
       {campaign.collect_dob && (
-        <div className="w-full flex flex-col space-y-1.5">
+        <div
+          ref={(el) => {
+            if (fieldRefs?.current) fieldRefs.current[3] = el;
+          }}
+          className="w-full flex flex-col space-y-1.5"
+        >
           <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
             <span className="flex items-center space-x-1.5">
               <Calendar className="w-3.5 h-3.5 text-amber-400" />
