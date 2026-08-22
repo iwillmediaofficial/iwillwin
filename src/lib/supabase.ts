@@ -173,6 +173,22 @@ export async function adminDeleteClient(userId: string): Promise<{ success: bool
   }
 }
 
+export async function adminSetCampaignClients(
+  campaignId: string,
+  clientUserIds: string[]
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_set_campaign_clients', {
+      p_campaign_id: campaignId,
+      p_client_user_ids: clientUserIds,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to assign clients to campaign' };
+  }
+}
+
 /**
  * Admin Dashboard Stats Fetcher
  */
