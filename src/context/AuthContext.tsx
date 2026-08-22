@@ -29,9 +29,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [assignedCampaignIds, setAssignedCampaignIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const isCheckingRef = useRef(false);
+  // In-flight promise tracker to deduplicate concurrent profile requests
+  const inFlightCheckRef = useRef<Promise<boolean> | null>(null);
 
-  const fetchAdminProfile = useCallback(async (authUser: User | null) => {
+  const fetchAdminProfile = useCallback(async (authUser: User | null): Promise<boolean> => {
     if (!authUser) {
       setAdminProfile(null);
       setIsAdmin(false);
@@ -41,83 +42,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     }
 
-    if (isCheckingRef.current) return false;
-    isCheckingRef.current = true;
+    if (inFlightCheckRef.current) {
+      return inFlightCheckRef.current;
+    }
 
-    try {
-      // 1. Direct query from admin_profiles
-      const { data, error } = await supabase
-        .from('admin_profiles')
-        .select('*')
-        .eq('auth_user_id', authUser.id)
-        .maybeSingle();
+    const checkPromise = (async () => {
+      try {
+        // 1. Fetch profile from admin_profiles
+        const { data, error } = await supabase
+          .from('admin_profiles')
+          .select('*')
+          .eq('auth_user_id', authUser.id)
+          .maybeSingle();
 
-      if (data && !error) {
-        const profile = data as AdminProfile;
-        setAdminProfile(profile);
-        setIsAdmin(true);
-        setIsSuperAdmin(profile.role === 'super_admin');
-        setIsClient(profile.role === 'client');
+        if (data && !error) {
+          const profile = data as AdminProfile;
+          setAdminProfile(profile);
+          setIsAdmin(true);
+          setIsSuperAdmin(profile.role === 'super_admin');
+          setIsClient(profile.role === 'client');
 
-        // Fetch assigned campaigns for client
-        if (profile.role === 'client') {
-          const { data: assignments } = await supabase
-            .from('campaign_user_assignments')
-            .select('campaign_id')
-            .eq('user_id', authUser.id);
+          // If client role, fetch their assigned campaigns
+          if (profile.role === 'client') {
+            const { data: assignments } = await supabase
+              .from('campaign_user_assignments')
+              .select('campaign_id')
+              .eq('user_id', authUser.id);
 
-          setAssignedCampaignIds(
-            (assignments || []).map((a: { campaign_id: string }) => a.campaign_id)
-          );
-        } else {
-          setAssignedCampaignIds([]);
+            setAssignedCampaignIds(
+              (assignments || []).map((a: { campaign_id: string }) => a.campaign_id)
+            );
+          } else {
+            setAssignedCampaignIds([]);
+          }
+
+          return true;
         }
 
-        return true;
-      }
+        // 2. Fallback check is_admin_or_client RPC
+        const { data: hasAccess } = await supabase.rpc('is_admin_or_client');
+        if (hasAccess) {
+          setIsAdmin(true);
+          const { data: isSuper } = await supabase.rpc('is_super_admin');
+          setIsSuperAdmin(Boolean(isSuper));
+          setIsClient(!isSuper);
+          return true;
+        }
 
-      // 2. Check is_super_admin() RPC
-      const { data: isSuper } = await supabase.rpc('is_super_admin');
-      if (isSuper) {
-        setIsAdmin(true);
-        setIsSuperAdmin(true);
+        setAdminProfile(null);
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
         setIsClient(false);
-        return true;
+        setAssignedCampaignIds([]);
+        return false;
+      } catch (err) {
+        console.error('Error fetching admin permissions:', err);
+        setAdminProfile(null);
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setIsClient(false);
+        setAssignedCampaignIds([]);
+        return false;
+      } finally {
+        inFlightCheckRef.current = null;
       }
+    })();
 
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
-      setIsClient(false);
-      setAssignedCampaignIds([]);
-      return false;
-    } catch (err) {
-      console.error('Error verifying admin permissions:', err);
-      setIsAdmin(false);
-      setIsSuperAdmin(false);
-      setIsClient(false);
-      setAssignedCampaignIds([]);
-      return false;
-    } finally {
-      isCheckingRef.current = false;
-    }
+    inFlightCheckRef.current = checkPromise;
+    return checkPromise;
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    // Initial session retrieval
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+    supabase.auth.getSession().then(async ({ data: { session: currentSession } }) => {
       if (!mounted) return;
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        fetchAdminProfile(currentSession.user).finally(() => {
-          if (mounted) setLoading(false);
-        });
-      } else {
-        setLoading(false);
+        await fetchAdminProfile(currentSession.user);
       }
+      if (mounted) setLoading(false);
     });
 
     const {
@@ -142,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsClient(false);
         setAssignedCampaignIds([]);
       }
+
       if (mounted) setLoading(false);
     });
 
@@ -153,18 +160,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithPassword = async (email: string, password: string) => {
     try {
+      setLoading(true);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) return { error };
+
+      if (error) {
+        setLoading(false);
+        return { error };
+      }
+
       if (data.user) {
         setUser(data.user);
         setSession(data.session);
-        await fetchAdminProfile(data.user);
+        const hasAccess = await fetchAdminProfile(data.user);
+        setLoading(false);
+
+        if (!hasAccess) {
+          return { error: new Error('Your account does not have access to the Admin Portal.') };
+        }
       }
+
+      setLoading(false);
       return { error: null };
     } catch (err: any) {
+      setLoading(false);
       return { error: err };
     }
   };

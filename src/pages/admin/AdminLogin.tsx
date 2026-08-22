@@ -25,13 +25,13 @@ export const AdminLogin: React.FC = () => {
     setError(null);
     setIsLoading(true);
 
-    const { error: signInError } = await signInWithPassword(email, password);
+    const { error: signInError } = await signInWithPassword(email.trim(), password);
     setIsLoading(false);
 
     if (signInError) {
       setError(signInError.message || 'Invalid email or password.');
     } else {
-      navigate('/admin');
+      navigate('/admin', { replace: true });
     }
   };
 
@@ -64,7 +64,7 @@ export const AdminLogin: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center space-x-2">
+          <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-300 flex items-center space-x-2 animate-fadeIn">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
