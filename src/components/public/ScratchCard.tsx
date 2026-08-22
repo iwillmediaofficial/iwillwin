@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import type { AllocatedPrizeData } from '@/types/database';
 import { playScratchSound } from '@/lib/audio';
-import { Sparkles, Gift } from 'lucide-react';
+import { Sparkles, Gift, Wand2 } from 'lucide-react';
+import { Button } from '@/components/common/Button';
 
 interface ScratchCardProps {
   prize: AllocatedPrizeData | null;
@@ -19,9 +20,28 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [isScratching, setIsScratching] = useState(false);
-  const [scratchPercent, setScratchPercent] = useState(0);
   const hasRevealedRef = useRef(isRevealed);
   const lastSoundTimeRef = useRef(0);
+
+  // Trigger smooth complete reveal
+  const triggerInstantReveal = useCallback(() => {
+    if (hasRevealedRef.current) return;
+    hasRevealedRef.current = true;
+
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      canvas.style.opacity = '0';
+    }
+
+    setTimeout(() => {
+      onReveal();
+    }, 150);
+  }, [onReveal]);
 
   // Initialize Canvas Scratch Layer
   const initCanvas = useCallback(() => {
@@ -35,6 +55,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
 
     // Reset composite operation
     ctx.globalCompositeOperation = 'source-over';
+    canvas.style.opacity = '1';
 
     // 1. Rich Metallic Gold Gradient Background
     const gradient = ctx.createLinearGradient(0, 0, width, height);
@@ -48,18 +69,18 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     ctx.fillRect(0, 0, width, height);
 
     // 2. Texture & Sparkles Pattern
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+    for (let i = 0; i < 45; i++) {
       const x = Math.random() * width;
       const y = Math.random() * height;
-      const r = Math.random() * 2 + 1;
+      const r = Math.random() * 2.5 + 1;
       ctx.beginPath();
       ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fill();
     }
 
     // 3. Border Trim
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
     ctx.lineWidth = 4;
     ctx.strokeRect(10, 10, width - 20, height - 20);
 
@@ -75,11 +96,11 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     ctx.fillText('🪙 SCRATCH HERE 🪙', width / 2, height / 2 + 10);
 
     ctx.fillStyle = '#854D0E';
-    ctx.font = '600 11px Inter, sans-serif';
-    ctx.fillText('Swipe coin across card to reveal', width / 2, height / 2 + 35);
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.fillText('Swipe once across card to unlock', width / 2, height / 2 + 36);
   }, []);
 
-  // Check scratch completion percentage
+  // Check scratch completion with instant low threshold (15%)
   const calculateScratchPercentage = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas || hasRevealedRef.current) return;
@@ -88,7 +109,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
 
     const width = canvas.width;
     const height = canvas.height;
-    const step = 8; // sample every 8px for high performance
+    const step = 10;
     const imgData = ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
 
@@ -107,15 +128,12 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     }
 
     const percent = Math.round((transparentPixels / totalSampled) * 100);
-    setScratchPercent(percent);
 
-    if (percent >= 38 && !hasRevealedRef.current) {
-      hasRevealedRef.current = true;
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillRect(0, 0, width, height);
-      onReveal();
+    // Instant reveal on initial quick swipe (>= 15%)
+    if (percent >= 15 && !hasRevealedRef.current) {
+      triggerInstantReveal();
     }
-  }, [onReveal]);
+  }, [triggerInstantReveal]);
 
   // Scratch action
   const scratchAt = useCallback(
@@ -133,14 +151,15 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
       const x = (clientX - rect.left) * scaleX;
       const y = (clientY - rect.top) * scaleY;
 
+      // Generous smooth brush stroke for instant feel
       ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
-      ctx.arc(x, y, 28, 0, Math.PI * 2);
+      ctx.arc(x, y, 42, 0, Math.PI * 2);
       ctx.fill();
 
-      // Trigger throttle scratch audio
+      // Trigger scratch audio
       const now = Date.now();
-      if (now - lastSoundTimeRef.current > 70) {
+      if (now - lastSoundTimeRef.current > 60) {
         playScratchSound();
         lastSoundTimeRef.current = now;
       }
@@ -221,7 +240,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
           Your Lucky Card is Ready!
         </h2>
         <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-          Use your finger or mouse to scratch the gold foil.
+          Swipe once across the card to reveal your reward.
         </p>
       </div>
 
@@ -270,19 +289,19 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
         )}
       </div>
 
-      {/* Scratch Progress Bar */}
+      {/* Quick Instant Reveal Button */}
       {!isRevealed && (
-        <div className="w-full max-w-[340px] sm:max-w-[380px] mt-4 flex flex-col space-y-1.5">
-          <div className="flex justify-between text-xs font-semibold text-slate-400">
-            <span>Scratch Progress</span>
-            <span className="text-amber-400">{scratchPercent}%</span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden border border-slate-700">
-            <div
-              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-150 rounded-full"
-              style={{ width: `${Math.min(scratchPercent * 2.5, 100)}%` }}
-            />
-          </div>
+        <div className="w-full max-w-[340px] sm:max-w-[380px] mt-4 flex items-center justify-center">
+          <Button
+            type="button"
+            onClick={triggerInstantReveal}
+            variant="outline"
+            size="sm"
+            className="w-full text-xs font-bold flex items-center justify-center space-x-1.5 border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+            leftIcon={<Wand2 className="w-3.5 h-3.5 text-amber-400 animate-pulse" />}
+          >
+            <span>Tap to Reveal Instantly</span>
+          </Button>
         </div>
       )}
     </div>
