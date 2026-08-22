@@ -3,8 +3,8 @@ import type { Campaign } from '@/types/database';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { User, Phone, Mail, CheckCircle2, Sparkles, ArrowDown } from 'lucide-react';
-import { animateShake, animateCountdownDigit, animateButtonReady } from '@/lib/gsap';
+import { User, Phone, Mail, CheckCircle2, Sparkles, ArrowDown, Lock } from 'lucide-react';
+import { animateShake, animateButtonReady } from '@/lib/gsap';
 
 interface ParticipantFormProps {
   campaign: Campaign;
@@ -31,55 +31,69 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
 
   const [errors, setErrors] = useState<{ name?: string; mobile?: string; email?: string }>({});
 
-  // Instagram Flow State
-  const [instagramClicked, setInstagramClicked] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const [isActivated, setIsActivated] = useState(false);
+  // Flow States
+  const [hasFollowedInstagram, setHasFollowedInstagram] = useState(false);
   const [showReadyBadge, setShowReadyBadge] = useState(false);
 
-  const countdownNumberRef = useRef<HTMLSpanElement>(null);
+  const instaBtnRef = useRef<HTMLButtonElement>(null);
   const submitBtnRef = useRef<HTMLButtonElement>(null);
+  const wasValidRef = useRef(false);
 
-  // Handle Instagram CTA click
+  // Check if all required inputs are filled & valid
+  const checkIsFormFilled = () => {
+    if (campaign.require_name && !name.trim()) return false;
+    if (campaign.require_mobile) {
+      const cleanMobile = mobile.replace(/[^0-9]/g, '');
+      if (!cleanMobile || cleanMobile.length < 10) return false;
+    }
+    if (campaign.require_email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!email.trim() || !emailRegex.test(email.trim())) return false;
+    }
+    return true;
+  };
+
+  const isFormFilled = checkIsFormFilled();
+
+  // Animate Instagram button when form fields become completely filled
+  useEffect(() => {
+    if (isFormFilled && !wasValidRef.current) {
+      wasValidRef.current = true;
+      if (instaBtnRef.current && !hasFollowedInstagram) {
+        animateButtonReady(instaBtnRef.current);
+      }
+    } else if (!isFormFilled) {
+      wasValidRef.current = false;
+    }
+  }, [isFormFilled, hasFollowedInstagram]);
+
+  // Handle Instagram Follow CTA Click
   const handleInstagramClick = () => {
+    if (!isFormFilled) {
+      validate();
+      if (formRef?.current) {
+        animateShake(formRef.current);
+      }
+      return;
+    }
+
+    // Open Instagram link in new tab
     if (campaign.instagram_url) {
       window.open(campaign.instagram_url, '_blank', 'noopener,noreferrer');
     }
 
-    if (!isActivated && !instagramClicked) {
-      setInstagramClicked(true);
-      setCountdown(5);
+    // Immediately activate follow state & enable Submit button (no countdown)
+    setHasFollowedInstagram(true);
+    setShowReadyBadge(true);
+
+    if (submitBtnRef.current) {
+      animateButtonReady(submitBtnRef.current);
     }
+
+    setTimeout(() => {
+      setShowReadyBadge(false);
+    }, 2500);
   };
-
-  // Countdown timer effect
-  useEffect(() => {
-    if (countdown === null) return;
-
-    if (countdown > 0) {
-      if (countdownNumberRef.current) {
-        animateCountdownDigit(countdownNumberRef.current);
-      }
-
-      const timer = setTimeout(() => {
-        setCountdown((prev) => (prev !== null ? prev - 1 : null));
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    } else if (countdown === 0) {
-      setIsActivated(true);
-      setShowReadyBadge(true);
-      setCountdown(null);
-
-      if (submitBtnRef.current) {
-        animateButtonReady(submitBtnRef.current);
-      }
-
-      setTimeout(() => {
-        setShowReadyBadge(false);
-      }, 2000);
-    }
-  }, [countdown]);
 
   const validate = () => {
     const errs: { name?: string; mobile?: string; email?: string } = {};
@@ -110,9 +124,17 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!isActivated) {
+    if (!isFormFilled) {
+      validate();
       if (formRef?.current) {
         animateShake(formRef.current);
+      }
+      return;
+    }
+
+    if (!hasFollowedInstagram) {
+      if (instaRef?.current) {
+        animateShake(instaRef.current);
       }
       return;
     }
@@ -137,7 +159,22 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       onSubmit={handleSubmit}
       className="w-full max-w-sm sm:max-w-md mx-auto bg-slate-900/90 border border-slate-800/90 rounded-2xl p-5 sm:p-7 shadow-2xl backdrop-blur-md flex flex-col space-y-4"
     >
-      {/* Form Fields */}
+      {/* Form Fields Header */}
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+          Step 1: Enter Your Details
+        </span>
+        {isFormFilled ? (
+          <span className="text-xs font-semibold text-emerald-400 flex items-center space-x-1">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Details Completed</span>
+          </span>
+        ) : (
+          <span className="text-[11px] text-amber-400/90 font-medium">Required</span>
+        )}
+      </div>
+
+      {/* Name Input */}
       {campaign.require_name && (
         <div
           ref={(el) => {
@@ -160,6 +197,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         </div>
       )}
 
+      {/* Mobile Input */}
       {campaign.require_mobile && (
         <div
           ref={(el) => {
@@ -183,6 +221,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         </div>
       )}
 
+      {/* Email Input */}
       {campaign.require_email && (
         <div
           ref={(el) => {
@@ -206,77 +245,95 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         </div>
       )}
 
-      {/* Instagram Step */}
+      {/* Step 2: Instagram Follow Action */}
       <div
         ref={instaRef as any}
-        className="pt-2 pb-1 border-t border-slate-800/80 flex flex-col space-y-3"
+        className="pt-3 pb-1 border-t border-slate-800/80 flex flex-col space-y-2.5"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
             <InstagramIcon className="w-4 h-4 text-pink-500" />
             <span>Step 2: Follow on Instagram</span>
           </span>
-          {isActivated ? (
+          {hasFollowedInstagram ? (
             <span className="text-xs font-semibold text-emerald-400 flex items-center space-x-1">
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Activated</span>
+              <span>Unlocked</span>
+            </span>
+          ) : isFormFilled ? (
+            <span className="text-[11px] font-semibold text-pink-400 animate-pulse">
+              Ready to Follow
             </span>
           ) : (
-            <span className="text-[11px] font-medium text-amber-400/90">Required</span>
+            <span className="text-[11px] font-medium text-slate-500 flex items-center space-x-1">
+              <Lock className="w-3 h-3" />
+              <span>Fill fields first</span>
+            </span>
           )}
         </div>
 
-        {/* Instagram Action Button */}
+        {/* Instagram Action Button: Only active after all required fields are filled */}
         <Button
+          ref={instaBtnRef}
           type="button"
           onClick={handleInstagramClick}
-          variant={isActivated ? 'secondary' : 'instagram'}
+          disabled={!isFormFilled}
+          variant={hasFollowedInstagram ? 'secondary' : isFormFilled ? 'instagram' : 'secondary'}
           size="lg"
-          className="w-full flex items-center justify-center space-x-2 font-bold shadow-glow-insta"
-          leftIcon={<InstagramIcon className="w-5 h-5" />}
+          className={`w-full flex items-center justify-center space-x-2 font-bold transition-all duration-200 ${
+            !isFormFilled
+              ? 'opacity-40 cursor-not-allowed bg-slate-800/50 border-slate-800 text-slate-500'
+              : hasFollowedInstagram
+              ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
+              : 'shadow-glow-insta hover:scale-[1.01]'
+          }`}
+          leftIcon={
+            hasFollowedInstagram ? (
+              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            ) : (
+              <InstagramIcon className="w-5 h-5" />
+            )
+          }
         >
-          <span>{isActivated ? '✓ Following on Instagram' : 'Follow us on Instagram'}</span>
+          <span>
+            {hasFollowedInstagram
+              ? '✓ Following on Instagram'
+              : isFormFilled
+              ? 'Follow on Instagram to Unlock'
+              : 'Fill Details Above to Unlock'}
+          </span>
         </Button>
 
-        {/* Countdown / Activation Status Banner */}
-        {countdown !== null && countdown > 0 && (
-          <div className="bg-slate-950/80 border border-pink-500/30 rounded-xl p-3 text-center flex flex-col items-center justify-center space-y-1 animate-fadeIn">
-            <p className="text-xs text-slate-300">
-              Please follow our account to activate your scratch card.
-            </p>
-            <div className="flex items-center space-x-2 pt-1">
-              <span className="text-xs font-semibold text-pink-400 uppercase tracking-wide">
-                Activating in
-              </span>
-              <span
-                ref={countdownNumberRef}
-                className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-pink-500/20 border border-pink-500/50 text-pink-300 font-extrabold text-base"
-              >
-                {countdown}
-              </span>
-            </div>
-          </div>
+        {/* Helper Hint */}
+        {!isFormFilled && (
+          <p className="text-[11px] text-center text-slate-500">
+            Please fill in your contact details above to enable the Instagram step.
+          </p>
         )}
 
-        {!isActivated && countdown === null && (
-          <p className="text-[11px] text-center text-slate-400 flex items-center justify-center space-x-1">
-            <ArrowDown className="w-3 h-3 text-amber-400 animate-bounce" />
-            <span>Tap the button above to unlock your scratch card</span>
+        {isFormFilled && !hasFollowedInstagram && (
+          <p className="text-[11px] text-center text-pink-300 flex items-center justify-center space-x-1 animate-fadeIn">
+            <ArrowDown className="w-3 h-3 text-pink-400 animate-bounce" />
+            <span>Tap above to follow and activate your scratch card instantly</span>
           </p>
         )}
       </div>
 
-      {/* Main Submit & Scratch Button */}
+      {/* Step 3: Main Submit & Scratch Button */}
       <div ref={submitRef as any} className="pt-2">
         <Button
           ref={submitBtnRef}
           type="submit"
-          disabled={!isActivated || isSubmitting}
+          disabled={!hasFollowedInstagram || isSubmitting}
           isLoading={isSubmitting}
           variant="gold"
           size="xl"
           className="w-full text-base sm:text-lg font-black tracking-wide shadow-glow-md"
-          leftIcon={isActivated && !isSubmitting ? <Sparkles className="w-5 h-5 animate-spin-slow" /> : undefined}
+          leftIcon={
+            hasFollowedInstagram && !isSubmitting ? (
+              <Sparkles className="w-5 h-5 animate-spin-slow" />
+            ) : undefined
+          }
         >
           {isSubmitting
             ? 'Preparing your Scratch Card...'
