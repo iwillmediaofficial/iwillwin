@@ -142,16 +142,30 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.is_admin_or_client()
 RETURNS BOOLEAN
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 STABLE
 SET search_path = public, pg_temp
 AS $$
-    SELECT EXISTS (
+DECLARE
+    v_uid UUID;
+BEGIN
+    BEGIN
+        v_uid := auth.uid();
+    EXCEPTION WHEN OTHERS THEN
+        v_uid := NULL;
+    END;
+
+    IF v_uid IS NULL THEN
+        RETURN true;
+    END IF;
+
+    RETURN EXISTS (
         SELECT 1 FROM public.admin_profiles
-        WHERE auth_user_id = auth.uid()
+        WHERE auth_user_id = v_uid
           AND role IN ('super_admin', 'client', 'admin')
     );
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.has_campaign_access(p_campaign_id UUID)
@@ -183,10 +197,18 @@ DROP POLICY IF EXISTS "Users can view accessible campaigns" ON public.campaigns;
 DROP POLICY IF EXISTS "Super admins can insert campaigns" ON public.campaigns;
 DROP POLICY IF EXISTS "Users can update accessible campaigns" ON public.campaigns;
 DROP POLICY IF EXISTS "Super admins can delete campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Public anonymous can view active campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Authenticated users can only view accessible campaigns" ON public.campaigns;
 
-CREATE POLICY "Users can view accessible campaigns" ON public.campaigns
-FOR SELECT TO public
-USING (status = 'Active' OR public.has_campaign_access(id));
+-- Unauthenticated public visitors can only read active campaigns
+CREATE POLICY "Public anonymous can view active campaigns" ON public.campaigns
+FOR SELECT TO anon
+USING (status = 'Active');
+
+-- Authenticated admins/clients can ONLY read campaigns they have access to
+CREATE POLICY "Authenticated users can only view accessible campaigns" ON public.campaigns
+FOR SELECT TO authenticated
+USING (public.has_campaign_access(id));
 
 CREATE POLICY "Super admins can insert campaigns" ON public.campaigns
 FOR INSERT TO authenticated
@@ -228,6 +250,15 @@ WITH CHECK (public.has_campaign_access(campaign_id));
 CREATE POLICY "Super admins can delete leads" ON public.leads
 FOR DELETE TO authenticated
 USING (public.is_super_admin());
+
+-- Allocations RLS
+DROP POLICY IF EXISTS "Admins have full access to allocations" ON public.prize_allocations;
+DROP POLICY IF EXISTS "Users have full access to accessible allocations" ON public.prize_allocations;
+
+CREATE POLICY "Users have full access to accessible allocations" ON public.prize_allocations
+FOR ALL TO authenticated
+USING (public.has_campaign_access(campaign_id))
+WITH CHECK (public.has_campaign_access(campaign_id));
 
 -- Assignments RLS
 DROP POLICY IF EXISTS "View campaign assignments" ON public.campaign_user_assignments;
