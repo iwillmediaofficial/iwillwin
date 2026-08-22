@@ -13,7 +13,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 
-const DEMO_WHATSAPP_NUMBER = '91812654111';
+const DEMO_WHATSAPP_NUMBER = '918129654111';
 const DEMO_WHATSAPP_URL = `https://wa.me/${DEMO_WHATSAPP_NUMBER}?text=${encodeURIComponent(
   "Hi IWILLWIN! I'd like to book a free demo for my brand."
 )}`;
@@ -221,7 +221,7 @@ export const LandingPage: React.FC = () => {
                 </Button>
               </a>
               <span className="text-[11px] text-slate-400 font-mono">
-                Direct WhatsApp: <strong className="text-slate-200">+91 812654111</strong>
+                Direct WhatsApp: <strong className="text-slate-200">+91 8129654111</strong>
               </span>
             </div>
           </div>
