@@ -71,7 +71,13 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
       const phoneStr = playerMobile || 'Registered Number';
       const nameStr = playerName || 'Winner';
 
-      const template = whatsappMessageTemplate?.trim() || DEFAULT_MESSAGE_TEMPLATE;
+      let template = whatsappMessageTemplate?.trim() || DEFAULT_MESSAGE_TEMPLATE;
+
+      // Ensure all escaped \n strings and real line breaks are converted to actual newlines
+      template = template
+        .replace(/\\r\\n/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\n');
 
       const formattedMsg = template
         .replace(/\{prize\}|\{\{prize\}\}|\{\{prize_name\}\}/gi, prizeName)

@@ -133,7 +133,12 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
   // Generate live sample preview based on user's editable template
   const getLivePreview = () => {
-    const template = formData.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE;
+    let template = formData.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE;
+    template = template
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\n');
+
     return template
       .replace(/\{prize\}|\{\{prize\}\}|\{\{prize_name\}\}/gi, '₹500 Gift Voucher')
       .replace(/\{code\}|\{\{code\}\}|\{\{claim_code\}\}/gi, 'WIN-8K9F2A1B')
