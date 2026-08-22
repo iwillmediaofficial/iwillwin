@@ -16,6 +16,9 @@ export interface Campaign {
   require_name: boolean;
   require_mobile: boolean;
   require_email: boolean;
+  collect_dob: boolean;
+  require_dob: boolean;
+  whatsapp_claim_number: string | null;
   unique_mobile: boolean;
   unique_email: boolean;
   success_message: string;
@@ -53,6 +56,7 @@ export interface Lead {
   mobile: string | null;
   email: string | null;
   dob?: string | null;
+  claim_code?: string | null;
   prize_id: string | null;
   scratch_status: ScratchStatus;
   ip_address: string | null;
@@ -99,6 +103,9 @@ export interface AllocatedPrizeData {
 export interface ParticipationResponse {
   success: boolean;
   lead_id?: string;
+  claim_code?: string;
+  player_mobile?: string;
+  whatsapp_claim_number?: string | null;
   prize?: AllocatedPrizeData | null;
   scratch_title?: string;
   success_message?: string;

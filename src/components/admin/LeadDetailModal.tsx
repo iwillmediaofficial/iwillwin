@@ -1,9 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Lead } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Badge } from '@/components/common/Badge';
 import { formatDate } from '@/lib/utils';
-import { Phone, Mail, Megaphone, Gift, Calendar, Clock, Globe, Cake } from 'lucide-react';
+import {
+  Phone,
+  Mail,
+  Megaphone,
+  Gift,
+  Calendar,
+  Clock,
+  Globe,
+  Cake,
+  ShieldCheck,
+  Copy,
+  Check,
+} from 'lucide-react';
 
 interface LeadDetailModalProps {
   isOpen: boolean;
@@ -16,7 +28,17 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   onClose,
   lead,
 }) => {
+  const [copied, setCopied] = useState(false);
+
   if (!lead) return null;
+
+  const handleCopyCode = () => {
+    if (lead.claim_code) {
+      navigator.clipboard.writeText(lead.claim_code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <Modal
@@ -42,6 +64,40 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Winning Claim Code Card */}
+        {lead.claim_code && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-between shadow-sm">
+            <div className="flex flex-col text-left pl-1">
+              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center space-x-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Winning Verification Code</span>
+              </span>
+              <span className="font-mono font-black text-amber-200 text-base tracking-widest mt-0.5">
+                {lead.claim_code}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCopyCode}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center space-x-1 text-xs font-semibold"
+              title="Copy Code"
+            >
+              {copied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-[11px] text-emerald-400">Copied</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  <span className="text-[11px]">Copy</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {/* Contact Info & DOB */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">

@@ -17,12 +17,15 @@ CREATE TABLE IF NOT EXISTS public.campaigns (
     require_name BOOLEAN NOT NULL DEFAULT true,
     require_mobile BOOLEAN NOT NULL DEFAULT true,
     require_email BOOLEAN NOT NULL DEFAULT false,
+    collect_dob BOOLEAN NOT NULL DEFAULT true,
+    require_dob BOOLEAN NOT NULL DEFAULT false,
+    whatsapp_claim_number VARCHAR(50),
     unique_mobile BOOLEAN NOT NULL DEFAULT true,
     unique_email BOOLEAN NOT NULL DEFAULT false,
     success_message TEXT DEFAULT '🎉 Congratulations on your win!',
     scratch_title TEXT DEFAULT 'Scratch to Reveal Your Prize',
     result_message TEXT DEFAULT 'Show this scratch card to claim your reward.',
-    cta_text TEXT DEFAULT 'Claim Reward',
+    cta_text TEXT DEFAULT 'Claim on WhatsApp',
     cta_url TEXT DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -56,6 +59,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
     name VARCHAR(255),
     mobile VARCHAR(50),
     email VARCHAR(255),
+    dob VARCHAR(20),
+    claim_code VARCHAR(50),
     prize_id UUID REFERENCES public.prizes(id) ON DELETE SET NULL,
     scratch_status VARCHAR(20) NOT NULL DEFAULT 'Pending' CHECK (scratch_status IN ('Pending', 'Revealed')),
     ip_address VARCHAR(100),
@@ -92,6 +97,7 @@ CREATE INDEX IF NOT EXISTS idx_prizes_active ON public.prizes(campaign_id, is_ac
 CREATE INDEX IF NOT EXISTS idx_leads_campaign_id ON public.leads(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_leads_mobile ON public.leads(campaign_id, mobile);
 CREATE INDEX IF NOT EXISTS idx_leads_email ON public.leads(campaign_id, email);
+CREATE INDEX IF NOT EXISTS idx_leads_claim_code ON public.leads(claim_code);
 CREATE INDEX IF NOT EXISTS idx_prize_allocations_hourly ON public.prize_allocations(prize_id, allocated_at);
 
 -- ROW LEVEL SECURITY (RLS)
@@ -139,7 +145,8 @@ CREATE OR REPLACE FUNCTION public.participate_and_scratch(
     p_mobile TEXT,
     p_email TEXT,
     p_ip TEXT DEFAULT NULL,
-    p_user_agent TEXT DEFAULT NULL
+    p_user_agent TEXT DEFAULT NULL,
+    p_dob TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -152,6 +159,8 @@ DECLARE
     v_clean_name TEXT;
     v_clean_mobile TEXT;
     v_clean_email TEXT;
+    v_clean_dob TEXT;
+    v_claim_code TEXT;
     v_existing_lead RECORD;
     v_candidate RECORD;
     v_total_weight INTEGER := 0;
@@ -165,6 +174,7 @@ BEGIN
     v_clean_name := NULLIF(TRIM(p_name), '');
     v_clean_mobile := NULLIF(REGEXP_REPLACE(p_mobile, '[^0-9+]', '', 'g'), '');
     v_clean_email := NULLIF(LOWER(TRIM(p_email)), '');
+    v_clean_dob := NULLIF(TRIM(p_dob), '');
 
     SELECT * INTO v_campaign FROM public.campaigns WHERE slug = p_campaign_slug LIMIT 1;
 
@@ -192,6 +202,10 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'code', 'INVALID_EMAIL', 'message', 'Please enter a valid email address.');
     END IF;
 
+    IF v_campaign.collect_dob AND v_campaign.require_dob AND v_clean_dob IS NULL THEN
+        RETURN jsonb_build_object('success', false, 'code', 'DOB_REQUIRED', 'message', 'Please select your Date of Birth.');
+    END IF;
+
     IF v_campaign.unique_mobile AND v_clean_mobile IS NOT NULL THEN
         SELECT l.*, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
         INTO v_existing_lead
@@ -206,6 +220,34 @@ BEGIN
                 'code', 'DUPLICATE_MOBILE',
                 'message', 'This mobile number has already participated in this campaign.',
                 'lead_id', v_existing_lead.id,
+                'claim_code', v_existing_lead.claim_code,
+                'player_mobile', v_existing_lead.mobile,
+                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
+                'scratch_status', v_existing_lead.scratch_status,
+                'prize', CASE WHEN v_existing_lead.prize_id IS NOT NULL THEN
+                    jsonb_build_object('id', v_existing_lead.prize_id, 'name', v_existing_lead.prize_name, 'description', v_existing_lead.prize_desc, 'image_url', v_existing_lead.prize_img)
+                ELSE NULL END
+            );
+        END IF;
+    END IF;
+
+    IF v_campaign.unique_email AND v_clean_email IS NOT NULL THEN
+        SELECT l.*, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
+        INTO v_existing_lead
+        FROM public.leads l
+        LEFT JOIN public.prizes p ON l.prize_id = p.id
+        WHERE l.campaign_id = v_campaign.id AND l.email = v_clean_email
+        LIMIT 1;
+
+        IF FOUND THEN
+            RETURN jsonb_build_object(
+                'success', false,
+                'code', 'DUPLICATE_EMAIL',
+                'message', 'This email address has already participated in this campaign.',
+                'lead_id', v_existing_lead.id,
+                'claim_code', v_existing_lead.claim_code,
+                'player_mobile', v_existing_lead.mobile,
+                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
                 'scratch_status', v_existing_lead.scratch_status,
                 'prize', CASE WHEN v_existing_lead.prize_id IS NOT NULL THEN
                     jsonb_build_object('id', v_existing_lead.prize_id, 'name', v_existing_lead.prize_name, 'description', v_existing_lead.prize_desc, 'image_url', v_existing_lead.prize_img)
@@ -272,10 +314,12 @@ BEGIN
         WHERE id = v_selected_prize_id;
     END IF;
 
+    v_claim_code := 'WIN-' || UPPER(SUBSTRING(MD5(gen_random_uuid()::TEXT || clock_timestamp()::TEXT), 1, 8));
+
     INSERT INTO public.leads (
-        campaign_id, name, mobile, email, prize_id, scratch_status, ip_address, user_agent, participated_at
+        campaign_id, name, mobile, email, dob, claim_code, prize_id, scratch_status, ip_address, user_agent, participated_at
     ) VALUES (
-        v_campaign.id, v_clean_name, v_clean_mobile, v_clean_email, v_selected_prize_id, 'Pending', p_ip, p_user_agent, NOW()
+        v_campaign.id, v_clean_name, v_clean_mobile, v_clean_email, v_clean_dob, v_claim_code, v_selected_prize_id, 'Pending', p_ip, p_user_agent, NOW()
     ) RETURNING id INTO v_lead_id;
 
     IF v_selected_prize_id IS NOT NULL THEN
@@ -286,10 +330,13 @@ BEGIN
     RETURN jsonb_build_object(
         'success', true,
         'lead_id', v_lead_id,
+        'claim_code', v_claim_code,
+        'player_mobile', v_clean_mobile,
+        'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
         'scratch_title', COALESCE(v_campaign.scratch_title, 'Scratch to Reveal Your Prize'),
         'success_message', COALESCE(v_campaign.success_message, 'Congratulations on your win!'),
         'result_message', COALESCE(v_campaign.result_message, 'Show this scratch card to claim your reward.'),
-        'cta_text', COALESCE(v_campaign.cta_text, 'Claim Reward'),
+        'cta_text', COALESCE(v_campaign.cta_text, 'Claim on WhatsApp'),
         'cta_url', COALESCE(v_campaign.cta_url, ''),
         'prize', CASE WHEN v_selected_prize_id IS NOT NULL THEN
             jsonb_build_object('id', v_selected_prize.id, 'name', v_selected_prize.name, 'description', v_selected_prize.description, 'image_url', v_selected_prize.image_url)
@@ -334,6 +381,7 @@ BEGIN
     SELECT 
         id, name, slug, description, logo_url, banner_url, instagram_url,
         start_date, end_date, status, require_name, require_mobile, require_email,
+        collect_dob, require_dob, whatsapp_claim_number,
         unique_mobile, unique_email, success_message, scratch_title, result_message,
         cta_text, cta_url
     INTO v_camp
@@ -349,7 +397,7 @@ END;
 $$;
 
 -- GRANT PERMISSIONS
-GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_scratch_revealed(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_campaign(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;

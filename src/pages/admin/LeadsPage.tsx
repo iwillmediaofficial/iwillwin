@@ -15,6 +15,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cake,
+  ShieldCheck,
 } from 'lucide-react';
 
 const PAGE_SIZE = 15;
@@ -67,7 +68,7 @@ export const LeadsPage: React.FC = () => {
 
       if (searchQuery.trim()) {
         const q = searchQuery.trim();
-        query = query.or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%`);
+        query = query.or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%,claim_code.ilike.%${q}%`);
       }
 
       const from = (currentPage - 1) * PAGE_SIZE;
@@ -123,6 +124,7 @@ export const LeadsPage: React.FC = () => {
 
       const exportRows = data.map((lead: any) => ({
         'Lead ID': lead.id,
+        'Winning Code': lead.claim_code || '',
         'Full Name': lead.name || 'Anonymous',
         'Mobile Number': lead.mobile || '',
         'Email Address': lead.email || '',
@@ -149,7 +151,7 @@ export const LeadsPage: React.FC = () => {
     <div className="flex-1 flex flex-col min-w-0 pb-12">
       <AdminHeader
         title="Leads & Participants"
-        description="Search, view, filter, and export promotional participants and allocated prizes"
+        description="Search, view, filter, and export promotional participants, unique winning codes, and allocated prizes"
         onOpenMobileMenu={openMobileMenu}
         actions={
           <Button
@@ -175,7 +177,7 @@ export const LeadsPage: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Search by name, mobile, or email..."
+                placeholder="Search by name, mobile, email, or winning code..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-slate-950 text-slate-100 placeholder-slate-500 rounded-xl border border-slate-700 pl-9 pr-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -237,7 +239,7 @@ export const LeadsPage: React.FC = () => {
             <table className="w-full text-left text-sm text-slate-200">
               <thead className="bg-slate-950/90 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="py-3.5 px-4 font-semibold">Participant</th>
+                  <th className="py-3.5 px-4 font-semibold">Participant & Code</th>
                   <th className="py-3.5 px-4 font-semibold">Contact Info</th>
                   <th className="py-3.5 px-4 font-semibold">Campaign</th>
                   <th className="py-3.5 px-4 font-semibold">Allocated Prize</th>
@@ -251,6 +253,12 @@ export const LeadsPage: React.FC = () => {
                   <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 font-bold text-white">
                       <div>{lead.name || 'Anonymous'}</div>
+                      {lead.claim_code && (
+                        <div className="text-[11px] text-amber-300 font-mono flex items-center space-x-1 mt-0.5">
+                          <ShieldCheck className="w-3 h-3 text-amber-400" />
+                          <span>{lead.claim_code}</span>
+                        </div>
+                      )}
                       {lead.dob && (
                         <div className="text-[11px] text-pink-300 font-normal flex items-center space-x-1 mt-0.5">
                           <Cake className="w-3 h-3 text-pink-400" />

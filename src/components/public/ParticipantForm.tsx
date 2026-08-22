@@ -46,7 +46,12 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   const [birthDay, setBirthDay] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
 
-  const [errors, setErrors] = useState<{ name?: string; mobile?: string; email?: string }>({});
+  const [errors, setErrors] = useState<{
+    name?: string;
+    mobile?: string;
+    email?: string;
+    dob?: string;
+  }>({});
 
   // Flow States
   const [hasFollowedInstagram, setHasFollowedInstagram] = useState(false);
@@ -66,6 +71,9 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
     if (campaign.require_email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!email.trim() || !emailRegex.test(email.trim())) return false;
+    }
+    if (campaign.collect_dob && campaign.require_dob) {
+      if (!birthDay || !birthMonth) return false;
     }
     return true;
   };
@@ -111,7 +119,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   };
 
   const validate = () => {
-    const errs: { name?: string; mobile?: string; email?: string } = {};
+    const errs: { name?: string; mobile?: string; email?: string; dob?: string } = {};
 
     if (campaign.require_name && !name.trim()) {
       errs.name = 'Please enter your name';
@@ -128,6 +136,12 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!email.trim() || !emailRegex.test(email.trim())) {
         errs.email = 'Please enter a valid email address';
+      }
+    }
+
+    if (campaign.collect_dob && campaign.require_dob) {
+      if (!birthDay || !birthMonth) {
+        errs.dob = 'Please select your Date of Birth (Day & Month)';
       }
     }
 
@@ -264,46 +278,60 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         </div>
       )}
 
-      {/* Date of Birth (Day & Month only - Optional) */}
-      <div className="w-full flex flex-col space-y-1.5">
-        <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
-          <span className="flex items-center space-x-1.5">
-            <Calendar className="w-3.5 h-3.5 text-amber-400" />
-            <span>Date of Birth</span>
-          </span>
-          <span className="text-[11px] font-normal text-slate-500 lowercase">(optional)</span>
-        </label>
+      {/* Date of Birth (Rendered only when collect_dob is enabled) */}
+      {campaign.collect_dob && (
+        <div className="w-full flex flex-col space-y-1.5">
+          <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
+            <span className="flex items-center space-x-1.5">
+              <Calendar className="w-3.5 h-3.5 text-amber-400" />
+              <span>Date of Birth</span>
+            </span>
+            {campaign.require_dob ? (
+              <span className="text-[11px] font-semibold text-amber-400">Required</span>
+            ) : (
+              <span className="text-[11px] font-normal text-slate-500 lowercase">(optional)</span>
+            )}
+          </label>
 
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Day Selector */}
-          <select
-            value={birthDay}
-            onChange={(e) => setBirthDay(e.target.value)}
-            className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
-          >
-            <option value="">Select Day</option>
-            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-              <option key={d} value={String(d)}>
-                {d}
-              </option>
-            ))}
-          </select>
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Day Selector */}
+            <select
+              value={birthDay}
+              onChange={(e) => {
+                setBirthDay(e.target.value);
+                if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
+              }}
+              className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
+            >
+              <option value="">Select Day</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={String(d)}>
+                  {d}
+                </option>
+              ))}
+            </select>
 
-          {/* Month Selector */}
-          <select
-            value={birthMonth}
-            onChange={(e) => setBirthMonth(e.target.value)}
-            className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
-          >
-            <option value="">Select Month</option>
-            {MONTHS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            {/* Month Selector */}
+            <select
+              value={birthMonth}
+              onChange={(e) => {
+                setBirthMonth(e.target.value);
+                if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
+              }}
+              className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
+            >
+              <option value="">Select Month</option>
+              {MONTHS.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {errors.dob && <p className="text-xs text-rose-400 mt-1">{errors.dob}</p>}
         </div>
-      </div>
+      )}
 
       {/* Step 2: Instagram Follow Action */}
       <div
@@ -367,7 +395,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         {/* Helper Hint */}
         {!isFormFilled && (
           <p className="text-[11px] text-center text-slate-500">
-            Please fill in your contact details above to enable the Instagram step.
+            Please fill in your details above to enable the Instagram step.
           </p>
         )}
 

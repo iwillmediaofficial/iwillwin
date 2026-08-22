@@ -5,7 +5,7 @@ import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
 import { uploadCampaignAsset } from '@/lib/supabase';
-import { Upload, Calendar, Settings2 } from 'lucide-react';
+import { Upload, Calendar, Settings2, MessageCircle, Sparkles } from 'lucide-react';
 
 interface CampaignModalProps {
   isOpen: boolean;
@@ -33,12 +33,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     require_name: true,
     require_mobile: true,
     require_email: false,
+    collect_dob: true,
+    require_dob: false,
+    whatsapp_claim_number: '',
     unique_mobile: true,
     unique_email: false,
     scratch_title: 'Scratch to Reveal Your Exclusive Reward',
     success_message: '🎉 CONGRATULATIONS! You unlocked an exclusive prize!',
-    result_message: 'Take a screenshot of this card to redeem your reward with our team.',
-    cta_text: 'Claim Prize on WhatsApp',
+    result_message: 'Show this card or click the button below to redeem with our team.',
+    cta_text: 'Claim on WhatsApp',
     cta_url: '',
   });
 
@@ -49,6 +52,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     if (initialData) {
       setFormData({
         ...initialData,
+        collect_dob: initialData.collect_dob ?? true,
+        require_dob: initialData.require_dob ?? false,
+        whatsapp_claim_number: initialData.whatsapp_claim_number || '',
         start_date: initialData.start_date
           ? new Date(initialData.start_date).toISOString().slice(0, 16)
           : new Date().toISOString().slice(0, 16),
@@ -70,12 +76,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         require_name: true,
         require_mobile: true,
         require_email: false,
+        collect_dob: true,
+        require_dob: false,
+        whatsapp_claim_number: '',
         unique_mobile: true,
         unique_email: false,
         scratch_title: 'Scratch to Reveal Your Exclusive Reward',
         success_message: '🎉 CONGRATULATIONS! You unlocked an exclusive prize!',
-        result_message: 'Take a screenshot of this card to redeem your reward with our team.',
-        cta_text: 'Claim Prize on WhatsApp',
+        result_message: 'Show this card or click the button below to redeem with our team.',
+        cta_text: 'Claim on WhatsApp',
         cta_url: '',
       });
     }
@@ -98,20 +107,34 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setIsUploadingLogo(true);
-      const url = await uploadCampaignAsset(e.target.files[0], 'logos');
-      setIsUploadingLogo(false);
-      if (url) {
-        setFormData((prev) => ({ ...prev, logo_url: url }));
+      try {
+        const url = await uploadCampaignAsset(e.target.files[0], 'logos');
+        if (url) {
+          setFormData((prev) => ({ ...prev, logo_url: url }));
+        }
+      } finally {
+        setIsUploadingLogo(false);
       }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name?.trim() || !formData.slug?.trim()) {
+      alert('Please fill campaign title and slug.');
+      return;
+    }
+
     setIsSaving(true);
     try {
-      await onSave(formData);
+      await onSave({
+        ...formData,
+        start_date: new Date(formData.start_date!).toISOString(),
+        end_date: new Date(formData.end_date!).toISOString(),
+      });
       onClose();
+    } catch (err: any) {
+      alert(`Error saving campaign: ${err.message}`);
     } finally {
       setIsSaving(false);
     }
@@ -122,30 +145,36 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={initialData ? 'Edit Campaign' : 'Create New Campaign'}
-      description="Configure promotional details, dates, validation rules, and Instagram action."
+      description="Configure promotional details, validation rules, and automated WhatsApp prize claiming."
       maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="flex flex-col space-y-4 max-h-[75vh] overflow-y-auto pr-1">
-        {/* Basic Info */}
+      <form onSubmit={handleSubmit} className="flex flex-col space-y-4 pt-2">
+        {/* Campaign Name & Slug */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
-            label="Campaign Name"
-            placeholder="e.g. Diwali Super Scratch & Win"
+            label="Campaign Title"
+            placeholder="e.g. Grand Festival Scratch & Win"
             value={formData.name || ''}
             onChange={(e) => handleNameChange(e.target.value)}
             required
           />
 
           <Input
-            label="URL Slug (/c/:slug)"
-            placeholder="e.g. diwali-2026"
+            label="URL Slug (/c/your-slug)"
+            placeholder="e.g. grand-launch"
             value={formData.slug || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+              }))
+            }
             required
           />
         </div>
 
-        <div className="w-full flex flex-col space-y-1.5">
+        {/* Description */}
+        <div className="flex flex-col space-y-1.5">
           <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase">
             Description
           </label>
@@ -219,7 +248,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               Campaign Status
             </label>
             <select
-              className="w-full bg-slate-900 text-slate-100 rounded-xl border border-slate-700 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400"
+              className="w-full bg-slate-900 text-slate-100 rounded-xl border border-slate-700 px-3 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 cursor-pointer"
               value={formData.status || 'Active'}
               onChange={(e) =>
                 setFormData((prev) => ({ ...prev, status: e.target.value as CampaignStatus }))
@@ -233,15 +262,15 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
         </div>
 
-        {/* Validation & Duplicate Rules */}
-        <div className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col space-y-3">
+        {/* Participant Requirements & Date of Birth Settings */}
+        <div className="p-4 bg-slate-950/60 rounded-2xl border border-slate-800 flex flex-col space-y-3">
           <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
             <Settings2 className="w-4 h-4 text-amber-400" />
-            <span>Form & Duplicate Validation Rules</span>
+            <span>Participant Information Requirements</span>
           </span>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-            <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
+            <label className="flex items-center space-x-2.5 text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.require_name}
@@ -251,7 +280,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               <span>Require Full Name</span>
             </label>
 
-            <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
+            <label className="flex items-center space-x-2.5 text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.require_mobile}
@@ -263,7 +292,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               <span>Require Mobile Number</span>
             </label>
 
-            <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
+            <label className="flex items-center space-x-2.5 text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.require_email}
@@ -275,7 +304,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               <span>Require Email Address</span>
             </label>
 
-            <label className="flex items-center space-x-2 text-slate-300 cursor-pointer">
+            <label className="flex items-center space-x-2.5 text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.unique_mobile}
@@ -284,23 +313,102 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
                 }
                 className="rounded border-slate-700 text-amber-500 focus:ring-amber-400"
               />
-              <span>Unique Mobile (1 Entry Per Mobile)</span>
+              <span>Unique Mobile (1 Entry Per Phone)</span>
+            </label>
+
+            {/* Date of Birth Controls */}
+            <label className="flex items-center space-x-2.5 text-slate-300 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.collect_dob}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    collect_dob: e.target.checked,
+                    require_dob: e.target.checked ? prev.require_dob : false,
+                  }))
+                }
+                className="rounded border-slate-700 text-amber-500 focus:ring-amber-400"
+              />
+              <span className="font-semibold text-amber-300">Collect Date of Birth (Day & Month)</span>
+            </label>
+
+            <label
+              className={`flex items-center space-x-2.5 cursor-pointer ${
+                !formData.collect_dob ? 'opacity-40 pointer-events-none' : 'text-slate-300'
+              }`}
+            >
+              <input
+                type="checkbox"
+                disabled={!formData.collect_dob}
+                checked={formData.require_dob}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, require_dob: e.target.checked }))
+                }
+                className="rounded border-slate-700 text-amber-500 focus:ring-amber-400"
+              />
+              <span>Make Date of Birth Mandatory</span>
             </label>
           </div>
         </div>
 
-        {/* Custom Winning Copy & Call-to-Action */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Input
-            label="Claim CTA Button Text"
-            placeholder="Claim on WhatsApp"
-            value={formData.cta_text || ''}
-            onChange={(e) => setFormData((prev) => ({ ...prev, cta_text: e.target.value }))}
-          />
+        {/* Automatic WhatsApp Claim URL Generator */}
+        <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-col space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
+              <MessageCircle className="w-4 h-4 text-emerald-400" />
+              <span>Automatic WhatsApp Prize Claiming</span>
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
+              Auto-Generated
+            </span>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label="WhatsApp Phone Number (with Country Code)"
+              placeholder="e.g. 919876543210"
+              value={formData.whatsapp_claim_number || ''}
+              onChange={(e) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  whatsapp_claim_number: e.target.value.replace(/[^0-9+]/g, ''),
+                  cta_text: prev.cta_text || 'Claim on WhatsApp',
+                }))
+              }
+              leftIcon={<MessageCircle className="w-4 h-4 text-emerald-400" />}
+            />
+
+            <Input
+              label="Claim Button Text"
+              placeholder="Claim on WhatsApp"
+              value={formData.cta_text || 'Claim on WhatsApp'}
+              onChange={(e) => setFormData((prev) => ({ ...prev, cta_text: e.target.value }))}
+            />
+          </div>
+
+          {formData.whatsapp_claim_number && (
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-emerald-500/20 text-xs text-slate-300 flex flex-col space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-1">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                <span>Pre-filled WhatsApp Message Preview</span>
+              </span>
+              <p className="text-slate-300 font-mono text-[11px] bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 leading-relaxed">
+                Hi! I won *[Prize Name]* on IWILLWIN! 🎉
+                <br />
+                Winning Verification Code: *WIN-8K9F2A1B*
+                <br />
+                Registered Mobile: *[Player Phone]*
+                <br />
+                Please guide me on how to claim my reward.
+              </p>
+            </div>
+          )}
+
+          {/* Fallback Custom URL (Optional) */}
           <Input
-            label="Claim Action URL"
-            placeholder="https://wa.me/... or https://yoursite.com"
+            label="Fallback / Custom Claim URL (Optional)"
+            placeholder="https://yourstore.com/redeem or leave blank for WhatsApp"
             value={formData.cta_url || ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, cta_url: e.target.value }))}
           />

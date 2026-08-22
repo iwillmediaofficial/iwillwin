@@ -1,13 +1,26 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AllocatedPrizeData } from '@/types/database';
 import { Button } from '@/components/common/Button';
-import { Sparkles, Trophy, ExternalLink, Share2, CheckCircle } from 'lucide-react';
+import {
+  Sparkles,
+  Trophy,
+  ExternalLink,
+  Share2,
+  CheckCircle,
+  Copy,
+  Check,
+  MessageCircle,
+  ShieldCheck,
+} from 'lucide-react';
 import { animatePrizeReveal } from '@/lib/gsap';
 import { playWinCelebrationSound } from '@/lib/audio';
 import { triggerConfettiBurst } from './CelebrationConfetti';
 
 interface PrizeRevealCardProps {
   prize: AllocatedPrizeData | null;
+  claimCode?: string;
+  playerMobile?: string;
+  whatsappNumber?: string | null;
   successMessage?: string;
   resultMessage?: string;
   ctaText?: string;
@@ -17,14 +30,18 @@ interface PrizeRevealCardProps {
 
 export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
   prize,
+  claimCode,
+  playerMobile,
+  whatsappNumber,
   successMessage = '🎉 CONGRATULATIONS!',
-  resultMessage = 'Show this screen to our store / support team to claim your reward.',
-  ctaText = 'CLAIM PRIZE',
+  resultMessage = 'Show this card or click the button below to redeem with our team.',
+  ctaText = 'Claim on WhatsApp',
   ctaUrl,
   isDuplicate = false,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const prizeBoxRef = useRef<HTMLDivElement>(null);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   useEffect(() => {
     // Play celebratory victory sound
@@ -39,9 +56,36 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
     }
   }, []);
 
+  // Build automated WhatsApp Claim URL
+  const getClaimUrl = () => {
+    if (whatsappNumber && whatsappNumber.trim() !== '') {
+      const cleanPhone = whatsappNumber.replace(/[^0-9]/g, '');
+      const prizeName = prize ? prize.name : 'Exclusive Reward';
+      const codeStr = claimCode || 'WIN-VERIFIED';
+      const phoneStr = playerMobile || 'Registered Number';
+
+      const msg = `Hi! I won *${prizeName}* on IWILLWIN! 🎉\nWinning Verification Code: *${codeStr}*\nRegistered Mobile: *${phoneStr}*\nPlease guide me on how to claim my reward.`;
+
+      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+    }
+
+    return ctaUrl || '';
+  };
+
+  const finalClaimUrl = getClaimUrl();
+  const isWhatsAppClaim = Boolean(whatsappNumber && whatsappNumber.trim() !== '');
+
   const handleCtaClick = () => {
-    if (ctaUrl) {
-      window.open(ctaUrl, '_blank', 'noopener,noreferrer');
+    if (finalClaimUrl) {
+      window.open(finalClaimUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleCopyCode = () => {
+    if (claimCode) {
+      navigator.clipboard.writeText(claimCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2000);
     }
   };
 
@@ -82,9 +126,7 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
         <span>{successMessage}</span>
       </div>
 
-      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">
-        YOU WON
-      </p>
+      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">YOU WON</p>
 
       {/* Prize Box with GSAP Animation */}
       <div
@@ -116,6 +158,40 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
         )}
       </div>
 
+      {/* Unique Winning Verification Code Card */}
+      {claimCode && (
+        <div className="w-full mb-4 p-3 bg-slate-950/80 rounded-2xl border border-amber-500/30 flex items-center justify-between shadow-inner">
+          <div className="flex flex-col text-left pl-1">
+            <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider flex items-center space-x-1">
+              <ShieldCheck className="w-3 h-3 text-amber-400" />
+              <span>Winning Verification Code</span>
+            </span>
+            <span className="font-mono font-black text-white text-base tracking-widest mt-0.5">
+              {claimCode}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCopyCode}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center space-x-1 text-xs font-semibold"
+            title="Copy Code"
+          >
+            {copiedCode ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-[11px] text-emerald-400">Copied</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span className="text-[11px]">Copy</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Result instructions */}
       <p className="text-xs text-slate-400 max-w-xs mb-5 font-normal leading-relaxed">
         {resultMessage}
@@ -123,15 +199,22 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
 
       {/* Action Buttons */}
       <div className="w-full flex flex-col space-y-2.5">
-        {ctaUrl ? (
+        {finalClaimUrl ? (
           <Button
             onClick={handleCtaClick}
-            variant="gold"
+            variant={isWhatsAppClaim ? 'whatsapp' : 'gold'}
             size="xl"
-            className="w-full font-black text-base shadow-glow-md"
-            rightIcon={<ExternalLink className="w-4 h-4" />}
+            className="w-full font-black text-base shadow-glow-md flex items-center justify-center space-x-2"
+            leftIcon={
+              isWhatsAppClaim ? (
+                <MessageCircle className="w-5 h-5 text-white" />
+              ) : undefined
+            }
+            rightIcon={
+              !isWhatsAppClaim ? <ExternalLink className="w-4 h-4" /> : undefined
+            }
           >
-            {ctaText}
+            <span>{ctaText || (isWhatsAppClaim ? 'Claim on WhatsApp' : 'Claim Reward')}</span>
           </Button>
         ) : null}
 

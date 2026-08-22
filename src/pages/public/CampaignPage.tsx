@@ -21,6 +21,8 @@ export const CampaignPage: React.FC = () => {
   // Phase State: 'form' | 'scratch' | 'revealed'
   const [phase, setPhase] = useState<'form' | 'scratch' | 'revealed'>('form');
   const [leadId, setLeadId] = useState<string | null>(null);
+  const [claimCode, setClaimCode] = useState<string | undefined>(undefined);
+  const [playerMobile, setPlayerMobile] = useState<string | undefined>(undefined);
   const [allocatedPrize, setAllocatedPrize] = useState<AllocatedPrizeData | null>(null);
   const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -120,6 +122,8 @@ export const CampaignPage: React.FC = () => {
 
     if (result.success && result.lead_id) {
       setLeadId(result.lead_id);
+      setClaimCode(result.claim_code);
+      setPlayerMobile(result.player_mobile || formData.mobile);
       setAllocatedPrize(result.prize || null);
       setIsDuplicate(false);
 
@@ -131,6 +135,8 @@ export const CampaignPage: React.FC = () => {
       // User has already played
       if (result.lead_id && result.prize) {
         setLeadId(result.lead_id);
+        setClaimCode(result.claim_code);
+        setPlayerMobile(result.player_mobile || formData.mobile);
         setAllocatedPrize(result.prize);
         setIsDuplicate(true);
 
@@ -252,6 +258,9 @@ export const CampaignPage: React.FC = () => {
           <div className="w-full animate-scaleUp">
             <PrizeRevealCard
               prize={allocatedPrize}
+              claimCode={claimCode}
+              playerMobile={playerMobile}
+              whatsappNumber={campaign.whatsapp_claim_number}
               successMessage={campaign.success_message}
               resultMessage={campaign.result_message}
               ctaText={campaign.cta_text}

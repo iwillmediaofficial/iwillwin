@@ -3,7 +3,15 @@ import { cn } from '@/lib/utils';
 import { playClickSound } from '@/lib/audio';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'gold' | 'instagram' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'success';
+  variant?:
+    | 'gold'
+    | 'instagram'
+    | 'whatsapp'
+    | 'secondary'
+    | 'outline'
+    | 'ghost'
+    | 'danger'
+    | 'success';
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
@@ -40,6 +48,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       gold: 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 shadow-glow-sm hover:shadow-glow-md hover:brightness-105 active:brightness-95 focus-visible:ring-amber-400 border border-amber-300/40',
       instagram:
         'bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#FCB045] text-white shadow-glow-insta hover:brightness-110 active:brightness-90 focus-visible:ring-pink-500 border border-white/20',
+      whatsapp:
+        'bg-gradient-to-r from-emerald-600 via-green-500 to-emerald-600 text-white shadow-glow-emerald hover:brightness-110 active:brightness-95 focus-visible:ring-emerald-400 border border-emerald-300/30',
       secondary:
         'bg-slate-800/90 hover:bg-slate-700 text-slate-100 border border-slate-700/80 hover:border-slate-600 focus-visible:ring-slate-400',
       outline:
@@ -76,7 +86,14 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               fill="none"
               viewBox="0 0 24 24"
             >
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
               <path
                 className="opacity-75"
                 fill="currentColor"
