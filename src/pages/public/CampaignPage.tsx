@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import type { Campaign, ParticipationResponse, AllocatedPrizeData } from '@/types/database';
 import { getPublicCampaign, participateAndScratch, markScratchRevealed, supabase } from '@/lib/supabase';
 import { CampaignHero } from '@/components/public/CampaignHero';
 import { ParticipantForm } from '@/components/public/ParticipantForm';
 import { ScratchCard } from '@/components/public/ScratchCard';
 import { PrizeRevealCard } from '@/components/public/PrizeRevealCard';
-import { AudioToggle } from '@/components/common/AudioToggle';
 import { animatePageLoad, animateTransitionToScratch } from '@/lib/gsap';
-import { Sparkles, AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
+import { Sparkles, AlertTriangle, ShieldCheck } from 'lucide-react';
 
 export const CampaignPage: React.FC = () => {
   const { slug } = useParams<{ slug?: string }>();
@@ -147,10 +146,8 @@ export const CampaignPage: React.FC = () => {
   // 4. Handle Scratch Reveal
   const handleScratchReveal = async () => {
     if (leadId) {
-      // Fire-and-forget server status update
       markScratchRevealed(leadId);
     }
-    // Transition to reveal view
     setPhase('revealed');
   };
 
@@ -177,16 +174,9 @@ export const CampaignPage: React.FC = () => {
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col items-center">
           <AlertTriangle className="w-12 h-12 text-amber-400 mb-4" />
           <h1 className="text-xl font-bold text-white mb-2">Campaign Not Available</h1>
-          <p className="text-sm text-slate-400 mb-6">
+          <p className="text-sm text-slate-400 mb-2">
             This promotional campaign has either ended or is currently unavailable.
           </p>
-          <Link
-            to="/admin/login"
-            className="text-xs text-slate-500 hover:text-amber-400 flex items-center space-x-1 transition-colors"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            <span>Admin Portal</span>
-          </Link>
         </div>
       </div>
     );
@@ -201,26 +191,15 @@ export const CampaignPage: React.FC = () => {
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-96 bg-amber-500/10 blur-[120px] pointer-events-none -z-10" />
       <div className="fixed bottom-0 right-0 w-80 h-80 bg-pink-500/5 blur-[100px] pointer-events-none -z-10" />
 
-      {/* Floating Top Controls Header */}
-      <header className="w-full max-w-2xl px-4 py-3 flex items-center justify-between z-20">
+      {/* Clean Top Header (No Sound / Admin Icons) */}
+      <header className="w-full max-w-2xl px-4 py-3.5 flex items-center justify-center z-20">
         <div className="flex items-center space-x-2">
-          <span className="font-extrabold text-lg tracking-wider font-display text-gold-gradient">
+          <span className="font-extrabold text-lg sm:text-xl tracking-wider font-display text-gold-gradient">
             IWILLWIN
           </span>
           <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 bg-slate-800 text-amber-300 rounded-md border border-slate-700 font-semibold">
             PROMO
           </span>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <AudioToggle />
-          <Link
-            to="/admin/login"
-            className="p-2 rounded-full bg-slate-900/80 border border-slate-700/60 text-slate-400 hover:text-white transition-all shadow-md active:scale-95"
-            title="Admin Login"
-          >
-            <Lock className="w-4 h-4" />
-          </Link>
         </div>
       </header>
 
