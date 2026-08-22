@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.campaigns (
     collect_dob BOOLEAN NOT NULL DEFAULT true,
     require_dob BOOLEAN NOT NULL DEFAULT false,
     whatsapp_claim_number VARCHAR(50),
+    whatsapp_message_template TEXT DEFAULT 'Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.',
     unique_mobile BOOLEAN NOT NULL DEFAULT true,
     unique_email BOOLEAN NOT NULL DEFAULT false,
     success_message TEXT DEFAULT '🎉 Congratulations on your win!',
@@ -381,7 +382,7 @@ BEGIN
     SELECT 
         id, name, slug, description, logo_url, banner_url, instagram_url,
         start_date, end_date, status, require_name, require_mobile, require_email,
-        collect_dob, require_dob, whatsapp_claim_number,
+        collect_dob, require_dob, whatsapp_claim_number, whatsapp_message_template,
         unique_mobile, unique_email, success_message, scratch_title, result_message,
         cta_text, cta_url
     INTO v_camp

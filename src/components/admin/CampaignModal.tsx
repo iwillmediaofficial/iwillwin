@@ -14,6 +14,8 @@ interface CampaignModalProps {
   initialData?: Campaign | null;
 }
 
+const DEFAULT_MESSAGE_TEMPLATE = `Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.`;
+
 export const CampaignModal: React.FC<CampaignModalProps> = ({
   isOpen,
   onClose,
@@ -36,6 +38,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     collect_dob: true,
     require_dob: false,
     whatsapp_claim_number: '',
+    whatsapp_message_template: DEFAULT_MESSAGE_TEMPLATE,
     unique_mobile: true,
     unique_email: false,
     scratch_title: 'Scratch to Reveal Your Exclusive Reward',
@@ -55,6 +58,8 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         collect_dob: initialData.collect_dob ?? true,
         require_dob: initialData.require_dob ?? false,
         whatsapp_claim_number: initialData.whatsapp_claim_number || '',
+        whatsapp_message_template:
+          initialData.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE,
         start_date: initialData.start_date
           ? new Date(initialData.start_date).toISOString().slice(0, 16)
           : new Date().toISOString().slice(0, 16),
@@ -79,6 +84,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         collect_dob: true,
         require_dob: false,
         whatsapp_claim_number: '',
+        whatsapp_message_template: DEFAULT_MESSAGE_TEMPLATE,
         unique_mobile: true,
         unique_email: false,
         scratch_title: 'Scratch to Reveal Your Exclusive Reward',
@@ -118,6 +124,23 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     }
   };
 
+  const insertVariable = (variable: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      whatsapp_message_template: `${prev.whatsapp_message_template || ''} ${variable}`,
+    }));
+  };
+
+  // Generate live sample preview based on user's editable template
+  const getLivePreview = () => {
+    const template = formData.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE;
+    return template
+      .replace(/\{prize\}|\{\{prize\}\}|\{\{prize_name\}\}/gi, '₹500 Gift Voucher')
+      .replace(/\{code\}|\{\{code\}\}|\{\{claim_code\}\}/gi, 'WIN-8K9F2A1B')
+      .replace(/\{mobile\}|\{\{mobile\}\}|\{\{phone\}\}/gi, '+91 98765 43210')
+      .replace(/\{name\}|\{\{name\}\}/gi, 'Rahul Sharma');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.trim() || !formData.slug?.trim()) {
@@ -145,7 +168,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={initialData ? 'Edit Campaign' : 'Create New Campaign'}
-      description="Configure promotional details, validation rules, and automated WhatsApp prize claiming."
+      description="Configure promotional details, validation rules, and custom WhatsApp prize claiming template."
       maxWidth="2xl"
     >
       <form onSubmit={handleSubmit} className="flex flex-col space-y-4 pt-2">
@@ -352,21 +375,21 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
           </div>
         </div>
 
-        {/* Automatic WhatsApp Claim URL Generator */}
-        <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-col space-y-3">
+        {/* Customizable WhatsApp Prize Claiming */}
+        <div className="p-4 bg-emerald-950/20 border border-emerald-500/30 rounded-2xl flex flex-col space-y-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center space-x-1.5">
               <MessageCircle className="w-4 h-4 text-emerald-400" />
-              <span>Automatic WhatsApp Prize Claiming</span>
+              <span>Custom WhatsApp Prize Claiming</span>
             </span>
             <span className="text-[11px] font-semibold text-emerald-400/90 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30">
-              Auto-Generated
+              Customizable Template
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input
-              label="WhatsApp Phone Number (with Country Code)"
+              label="WhatsApp Number (with Country Code)"
               placeholder="e.g. 919876543210"
               value={formData.whatsapp_claim_number || ''}
               onChange={(e) =>
@@ -387,25 +410,70 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             />
           </div>
 
-          {formData.whatsapp_claim_number && (
-            <div className="p-3 bg-slate-950/80 rounded-xl border border-emerald-500/20 text-xs text-slate-300 flex flex-col space-y-1">
+          {/* Editable WhatsApp Message Template */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase">
+                WhatsApp Message Template
+              </label>
+              <div className="flex items-center space-x-1">
+                <span className="text-[10px] text-slate-400 font-semibold mr-1">Insert Variable:</span>
+                <button
+                  type="button"
+                  onClick={() => insertVariable('{prize}')}
+                  className="text-[10px] bg-slate-800 hover:bg-emerald-500/20 text-amber-300 hover:text-emerald-300 px-2 py-0.5 rounded border border-slate-700 font-mono transition-colors"
+                >
+                  +{'{prize}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertVariable('{code}')}
+                  className="text-[10px] bg-slate-800 hover:bg-emerald-500/20 text-amber-300 hover:text-emerald-300 px-2 py-0.5 rounded border border-slate-700 font-mono transition-colors"
+                >
+                  +{'{code}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertVariable('{mobile}')}
+                  className="text-[10px] bg-slate-800 hover:bg-emerald-500/20 text-amber-300 hover:text-emerald-300 px-2 py-0.5 rounded border border-slate-700 font-mono transition-colors"
+                >
+                  +{'{mobile}'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => insertVariable('{name}')}
+                  className="text-[10px] bg-slate-800 hover:bg-emerald-500/20 text-amber-300 hover:text-emerald-300 px-2 py-0.5 rounded border border-slate-700 font-mono transition-colors"
+                >
+                  +{'{name}'}
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              className="w-full bg-slate-900 text-slate-100 placeholder-slate-500 rounded-xl border border-slate-700 p-3 text-xs font-mono min-h-[95px] focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 leading-relaxed"
+              placeholder="Hi! I won *{prize}* on IWILLWIN!..."
+              value={formData.whatsapp_message_template || ''}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, whatsapp_message_template: e.target.value }))
+              }
+            />
+          </div>
+
+          {/* Live Interactive Preview Box */}
+          <div className="p-3 bg-slate-950/90 rounded-xl border border-emerald-500/30 text-xs text-slate-300 flex flex-col space-y-1.5 shadow-inner">
+            <div className="flex items-center justify-between">
               <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-1">
                 <Sparkles className="w-3 h-3 text-emerald-400" />
-                <span>Pre-filled WhatsApp Message Preview</span>
+                <span>Live WhatsApp Message Preview</span>
               </span>
-              <p className="text-slate-300 font-mono text-[11px] bg-slate-900/90 p-2.5 rounded-lg border border-slate-800 leading-relaxed">
-                Hi! I won *[Prize Name]* on IWILLWIN! 🎉
-                <br />
-                Winning Verification Code: *WIN-8K9F2A1B*
-                <br />
-                Registered Mobile: *[Player Phone]*
-                <br />
-                Please guide me on how to claim my reward.
-              </p>
+              <span className="text-[10px] text-slate-500 italic">Sample winner preview</span>
             </div>
-          )}
+            <div className="text-slate-200 font-mono text-[11px] bg-slate-900/90 p-3 rounded-lg border border-slate-800 leading-relaxed whitespace-pre-wrap">
+              {getLivePreview()}
+            </div>
+          </div>
 
-          {/* Fallback Custom URL (Optional) */}
+          {/* Fallback Custom URL */}
           <Input
             label="Fallback / Custom Claim URL (Optional)"
             placeholder="https://yourstore.com/redeem or leave blank for WhatsApp"

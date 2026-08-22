@@ -19,6 +19,7 @@ export interface Campaign {
   collect_dob: boolean;
   require_dob: boolean;
   whatsapp_claim_number: string | null;
+  whatsapp_message_template: string | null;
   unique_mobile: boolean;
   unique_email: boolean;
   success_message: string;

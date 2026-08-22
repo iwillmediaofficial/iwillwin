@@ -20,7 +20,9 @@ interface PrizeRevealCardProps {
   prize: AllocatedPrizeData | null;
   claimCode?: string;
   playerMobile?: string;
+  playerName?: string;
   whatsappNumber?: string | null;
+  whatsappMessageTemplate?: string | null;
   successMessage?: string;
   resultMessage?: string;
   ctaText?: string;
@@ -28,11 +30,15 @@ interface PrizeRevealCardProps {
   isDuplicate?: boolean;
 }
 
+const DEFAULT_MESSAGE_TEMPLATE = `Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.`;
+
 export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
   prize,
   claimCode,
   playerMobile,
+  playerName,
   whatsappNumber,
+  whatsappMessageTemplate,
   successMessage = '🎉 CONGRATULATIONS!',
   resultMessage = 'Show this card or click the button below to redeem with our team.',
   ctaText = 'Claim on WhatsApp',
@@ -56,17 +62,24 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
     }
   }, []);
 
-  // Build automated WhatsApp Claim URL
+  // Build automated WhatsApp Claim URL using custom template
   const getClaimUrl = () => {
     if (whatsappNumber && whatsappNumber.trim() !== '') {
       const cleanPhone = whatsappNumber.replace(/[^0-9]/g, '');
       const prizeName = prize ? prize.name : 'Exclusive Reward';
       const codeStr = claimCode || 'WIN-VERIFIED';
       const phoneStr = playerMobile || 'Registered Number';
+      const nameStr = playerName || 'Winner';
 
-      const msg = `Hi! I won *${prizeName}* on IWILLWIN! 🎉\nWinning Verification Code: *${codeStr}*\nRegistered Mobile: *${phoneStr}*\nPlease guide me on how to claim my reward.`;
+      const template = whatsappMessageTemplate?.trim() || DEFAULT_MESSAGE_TEMPLATE;
 
-      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+      const formattedMsg = template
+        .replace(/\{prize\}|\{\{prize\}\}|\{\{prize_name\}\}/gi, prizeName)
+        .replace(/\{code\}|\{\{code\}\}|\{\{claim_code\}\}/gi, codeStr)
+        .replace(/\{mobile\}|\{\{mobile\}\}|\{\{phone\}\}/gi, phoneStr)
+        .replace(/\{name\}|\{\{name\}\}/gi, nameStr);
+
+      return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(formattedMsg)}`;
     }
 
     return ctaUrl || '';

@@ -23,6 +23,7 @@ export const CampaignPage: React.FC = () => {
   const [leadId, setLeadId] = useState<string | null>(null);
   const [claimCode, setClaimCode] = useState<string | undefined>(undefined);
   const [playerMobile, setPlayerMobile] = useState<string | undefined>(undefined);
+  const [playerName, setPlayerName] = useState<string | undefined>(undefined);
   const [allocatedPrize, setAllocatedPrize] = useState<AllocatedPrizeData | null>(null);
   const [isDuplicate, setIsDuplicate] = useState<boolean>(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
@@ -109,6 +110,7 @@ export const CampaignPage: React.FC = () => {
     if (!campaign) return;
     setIsSubmitting(true);
     setSubmissionError(null);
+    setPlayerName(formData.name);
 
     const result: ParticipationResponse = await participateAndScratch({
       campaignSlug: campaign.slug,
@@ -260,7 +262,9 @@ export const CampaignPage: React.FC = () => {
               prize={allocatedPrize}
               claimCode={claimCode}
               playerMobile={playerMobile}
+              playerName={playerName}
               whatsappNumber={campaign.whatsapp_claim_number}
+              whatsappMessageTemplate={campaign.whatsapp_message_template}
               successMessage={campaign.success_message}
               resultMessage={campaign.result_message}
               ctaText={campaign.cta_text}
