@@ -1,13 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X, Loader2 } from 'lucide-react';
+
+const AdminContentFallback = () => (
+  <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] p-8">
+    <div className="flex items-center space-x-2 text-amber-400 font-semibold text-xs animate-pulse">
+      <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+      <span>Loading View...</span>
+    </div>
+  </div>
+);
 
 export const AdminLayout: React.FC = () => {
   const { user, isAdmin, loading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Initial Full Screen Loader only on first boot
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex flex-col items-center justify-center">
@@ -26,7 +36,7 @@ export const AdminLayout: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background text-slate-100 flex flex-col lg:flex-row overflow-x-hidden">
-      {/* Desktop Sidebar */}
+      {/* Desktop Sidebar (Persistent & Fixed) */}
       <div className="hidden lg:block w-64 flex-shrink-0 h-screen sticky top-0">
         <AdminSidebar />
       </div>
@@ -51,9 +61,11 @@ export const AdminLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Main Content Area with isolated Suspense boundary to prevent sidebar flashing */}
       <div className="flex-1 flex flex-col min-w-0">
-        <Outlet context={{ openMobileMenu: () => setMobileMenuOpen(true) }} />
+        <Suspense fallback={<AdminContentFallback />}>
+          <Outlet context={{ openMobileMenu: () => setMobileMenuOpen(true) }} />
+        </Suspense>
       </div>
     </div>
   );

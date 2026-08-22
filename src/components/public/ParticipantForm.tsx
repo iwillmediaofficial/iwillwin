@@ -3,18 +3,33 @@ import type { Campaign } from '@/types/database';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { User, Phone, Mail, CheckCircle2, Sparkles, ArrowDown, Lock } from 'lucide-react';
+import { User, Phone, Mail, CheckCircle2, Sparkles, ArrowDown, Lock, Calendar } from 'lucide-react';
 import { animateShake, animateButtonReady } from '@/lib/gsap';
 
 interface ParticipantFormProps {
   campaign: Campaign;
-  onSubmit: (data: { name: string; mobile: string; email: string }) => Promise<void>;
+  onSubmit: (data: { name: string; mobile: string; email: string; dob?: string }) => Promise<void>;
   isSubmitting: boolean;
   formRef?: React.RefObject<HTMLFormElement>;
   fieldRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
   instaRef?: React.RefObject<HTMLDivElement>;
   submitRef?: React.RefObject<HTMLDivElement>;
 }
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   campaign,
@@ -28,6 +43,8 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   const [name, setName] = useState('');
   const [mobile, setMobile] = useState('');
   const [email, setEmail] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
 
   const [errors, setErrors] = useState<{ name?: string; mobile?: string; email?: string }>({});
 
@@ -77,12 +94,10 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       return;
     }
 
-    // Open Instagram link in new tab
     if (campaign.instagram_url) {
       window.open(campaign.instagram_url, '_blank', 'noopener,noreferrer');
     }
 
-    // Immediately activate follow state & enable Submit button (no countdown)
     setHasFollowedInstagram(true);
     setShowReadyBadge(true);
 
@@ -99,7 +114,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
     const errs: { name?: string; mobile?: string; email?: string } = {};
 
     if (campaign.require_name && !name.trim()) {
-      errs.name = 'Please enter your full name';
+      errs.name = 'Please enter your name';
     }
 
     if (campaign.require_mobile) {
@@ -146,10 +161,14 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       return;
     }
 
+    const formattedDob =
+      birthDay && birthMonth ? `${birthDay.padStart(2, '0')} ${birthMonth}` : undefined;
+
     await onSubmit({
       name: name.trim(),
       mobile: mobile.trim(),
       email: email.trim(),
+      dob: formattedDob,
     });
   };
 
@@ -182,8 +201,8 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
           }}
         >
           <Input
-            label="Your Full Name"
-            placeholder="e.g. Rahul Sharma"
+            label="Your Name"
+            placeholder="Enter name"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -245,6 +264,47 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         </div>
       )}
 
+      {/* Date of Birth (Day & Month only - Optional) */}
+      <div className="w-full flex flex-col space-y-1.5">
+        <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
+          <span className="flex items-center space-x-1.5">
+            <Calendar className="w-3.5 h-3.5 text-amber-400" />
+            <span>Date of Birth</span>
+          </span>
+          <span className="text-[11px] font-normal text-slate-500 lowercase">(optional)</span>
+        </label>
+
+        <div className="grid grid-cols-2 gap-2.5">
+          {/* Day Selector */}
+          <select
+            value={birthDay}
+            onChange={(e) => setBirthDay(e.target.value)}
+            className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
+          >
+            <option value="">Select Day</option>
+            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+              <option key={d} value={String(d)}>
+                {d}
+              </option>
+            ))}
+          </select>
+
+          {/* Month Selector */}
+          <select
+            value={birthMonth}
+            onChange={(e) => setBirthMonth(e.target.value)}
+            className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
+          >
+            <option value="">Select Month</option>
+            {MONTHS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* Step 2: Instagram Follow Action */}
       <div
         ref={instaRef as any}
@@ -272,7 +332,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
           )}
         </div>
 
-        {/* Instagram Action Button: Only active after all required fields are filled */}
+        {/* Instagram Action Button */}
         <Button
           ref={instaBtnRef}
           type="button"
@@ -342,11 +402,6 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
             : 'SUBMIT & SCRATCH'}
         </Button>
       </div>
-
-      {/* Trust notice */}
-      <p className="text-[11px] text-center text-slate-500 pt-1">
-        🔒 100% Free promotional game. No purchase necessary.
-      </p>
     </form>
   );
 };

@@ -52,6 +52,7 @@ export interface Lead {
   name: string | null;
   mobile: string | null;
   email: string | null;
+  dob?: string | null;
   prize_id: string | null;
   scratch_status: ScratchStatus;
   ip_address: string | null;

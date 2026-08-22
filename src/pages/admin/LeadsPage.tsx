@@ -14,6 +14,7 @@ import {
   Users,
   ChevronLeft,
   ChevronRight,
+  Cake,
 } from 'lucide-react';
 
 const PAGE_SIZE = 15;
@@ -125,6 +126,7 @@ export const LeadsPage: React.FC = () => {
         'Full Name': lead.name || 'Anonymous',
         'Mobile Number': lead.mobile || '',
         'Email Address': lead.email || '',
+        'Date of Birth': lead.dob || '',
         'Campaign Name': lead.campaign?.name || '',
         'Prize Won': lead.prize?.name || 'None',
         'Scratch Status': lead.scratch_status,
@@ -248,7 +250,13 @@ export const LeadsPage: React.FC = () => {
                 {leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
                     <td className="py-3 px-4 font-bold text-white">
-                      {lead.name || 'Anonymous'}
+                      <div>{lead.name || 'Anonymous'}</div>
+                      {lead.dob && (
+                        <div className="text-[11px] text-pink-300 font-normal flex items-center space-x-1 mt-0.5">
+                          <Cake className="w-3 h-3 text-pink-400" />
+                          <span>DOB: {lead.dob}</span>
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-4 text-xs text-slate-300">
                       <div>{lead.mobile || '—'}</div>

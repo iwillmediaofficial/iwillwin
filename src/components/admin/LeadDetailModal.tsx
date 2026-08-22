@@ -3,7 +3,7 @@ import type { Lead } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Badge } from '@/components/common/Badge';
 import { formatDate } from '@/lib/utils';
-import { Phone, Mail, Megaphone, Gift, Calendar, Clock, Globe } from 'lucide-react';
+import { Phone, Mail, Megaphone, Gift, Calendar, Clock, Globe, Cake } from 'lucide-react';
 
 interface LeadDetailModalProps {
   isOpen: boolean;
@@ -43,12 +43,12 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Contact Info */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        {/* Contact Info & DOB */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col space-y-1">
             <span className="text-[10px] uppercase font-semibold text-slate-400 flex items-center space-x-1">
               <Phone className="w-3 h-3 text-amber-400" />
-              <span>Mobile Number</span>
+              <span>Mobile</span>
             </span>
             <span className="font-semibold text-slate-200">{lead.mobile || '—'}</span>
           </div>
@@ -56,9 +56,17 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
           <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col space-y-1">
             <span className="text-[10px] uppercase font-semibold text-slate-400 flex items-center space-x-1">
               <Mail className="w-3 h-3 text-amber-400" />
-              <span>Email Address</span>
+              <span>Email</span>
             </span>
             <span className="font-semibold text-slate-200 truncate">{lead.email || '—'}</span>
+          </div>
+
+          <div className="p-3 bg-slate-950/60 rounded-xl border border-slate-800 flex flex-col space-y-1">
+            <span className="text-[10px] uppercase font-semibold text-slate-400 flex items-center space-x-1">
+              <Cake className="w-3 h-3 text-pink-400" />
+              <span>Birth Day</span>
+            </span>
+            <span className="font-semibold text-slate-200">{lead.dob || '—'}</span>
           </div>
         </div>
 

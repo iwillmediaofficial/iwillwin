@@ -98,7 +98,12 @@ export const CampaignPage: React.FC = () => {
   }, [loading, campaign, phase]);
 
   // 3. Handle Form Submission & Server RPC Call
-  const handleFormSubmit = async (formData: { name: string; mobile: string; email: string }) => {
+  const handleFormSubmit = async (formData: {
+    name: string;
+    mobile: string;
+    email: string;
+    dob?: string;
+  }) => {
     if (!campaign) return;
     setIsSubmitting(true);
     setSubmissionError(null);
@@ -108,6 +113,7 @@ export const CampaignPage: React.FC = () => {
       name: formData.name,
       mobile: formData.mobile,
       email: formData.email,
+      dob: formData.dob,
     });
 
     setIsSubmitting(false);
@@ -191,16 +197,11 @@ export const CampaignPage: React.FC = () => {
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-lg h-96 bg-amber-500/10 blur-[120px] pointer-events-none -z-10" />
       <div className="fixed bottom-0 right-0 w-80 h-80 bg-pink-500/5 blur-[100px] pointer-events-none -z-10" />
 
-      {/* Clean Top Header (No Sound / Admin Icons) */}
+      {/* Clean Top Header */}
       <header className="w-full max-w-2xl px-4 py-3.5 flex items-center justify-center z-20">
-        <div className="flex items-center space-x-2">
-          <span className="font-extrabold text-lg sm:text-xl tracking-wider font-display text-gold-gradient">
-            IWILLWIN
-          </span>
-          <span className="text-[10px] uppercase tracking-widest px-2 py-0.5 bg-slate-800 text-amber-300 rounded-md border border-slate-700 font-semibold">
-            PROMO
-          </span>
-        </div>
+        <span className="font-extrabold text-lg sm:text-xl tracking-wider font-display text-gold-gradient">
+          IWILLWIN
+        </span>
       </header>
 
       {/* Main Campaign Container */}

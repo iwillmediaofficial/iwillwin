@@ -36,6 +36,7 @@ export async function participateAndScratch(params: {
   name: string;
   mobile: string;
   email: string;
+  dob?: string;
 }): Promise<ParticipationResponse> {
   try {
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
@@ -46,6 +47,7 @@ export async function participateAndScratch(params: {
       p_email: params.email || null,
       p_ip: null,
       p_user_agent: userAgent,
+      p_dob: params.dob || null,
     });
 
     if (error) {

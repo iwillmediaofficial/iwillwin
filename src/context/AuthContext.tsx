@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { AdminProfile } from '@/types/database';
@@ -24,12 +24,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const fetchAdminProfile = async (authUser: User | null) => {
+  const isCheckingRef = useRef(false);
+
+  const fetchAdminProfile = useCallback(async (authUser: User | null) => {
     if (!authUser) {
       setAdminProfile(null);
       setIsAdmin(false);
-      return;
+      return false;
     }
+
+    if (isCheckingRef.current) return false;
+    isCheckingRef.current = true;
 
     try {
       // 1. Direct query from admin_profiles
@@ -42,17 +47,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data && !error) {
         setAdminProfile(data as AdminProfile);
         setIsAdmin(true);
-        return;
+        return true;
       }
 
       // 2. If table is empty or first user, check is_admin() RPC
       const { data: isAdm } = await supabase.rpc('is_admin');
       if (isAdm) {
         setIsAdmin(true);
-        return;
+        return true;
       }
 
-      // If user exists in auth but admin_profile wasn't inserted, attempt auto-linking if single user
+      // 3. Fallback auto-link
       const { data: newProf, error: insErr } = await supabase
         .from('admin_profiles')
         .insert({
@@ -66,37 +71,66 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (newProf && !insErr) {
         setAdminProfile(newProf as AdminProfile);
         setIsAdmin(true);
+        return true;
       } else {
         setIsAdmin(false);
+        return false;
       }
     } catch (err) {
       console.error('Error verifying admin permissions:', err);
       setIsAdmin(false);
+      return false;
+    } finally {
+      isCheckingRef.current = false;
     }
-  };
+  }, []);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Initial session retrieval
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (!mounted) return;
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
-      fetchAdminProfile(currentSession?.user ?? null).finally(() => {
+
+      if (currentSession?.user) {
+        fetchAdminProfile(currentSession.user).finally(() => {
+          if (mounted) setLoading(false);
+        });
+      } else {
         setLoading(false);
-      });
+      }
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
+
+      // Avoid refetching on simple token refresh if user is already established
+      if (event === 'TOKEN_REFRESHED' && user?.id === newSession?.user?.id) {
+        setSession(newSession);
+        return;
+      }
+
       setSession(newSession);
       setUser(newSession?.user ?? null);
-      await fetchAdminProfile(newSession?.user ?? null);
-      setLoading(false);
+
+      if (newSession?.user) {
+        await fetchAdminProfile(newSession.user);
+      } else {
+        setAdminProfile(null);
+        setIsAdmin(false);
+      }
+      if (mounted) setLoading(false);
     });
 
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchAdminProfile, user?.id]);
 
   const signInWithPassword = async (email: string, password: string) => {
     try {
@@ -106,6 +140,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (error) return { error };
       if (data.user) {
+        setUser(data.user);
+        setSession(data.session);
         await fetchAdminProfile(data.user);
       }
       return { error: null };
@@ -122,6 +158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       if (error) return { error };
       if (data.user) {
+        setUser(data.user);
+        setSession(data.session);
         await fetchAdminProfile(data.user);
       }
       return { error: null };
