@@ -3,7 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from '@/context/AuthContext';
 import { Sparkles } from 'lucide-react';
 
-// Public Page (eager loaded for instant first-paint on mobile)
+// Public Pages (eager loaded for instant first-paint)
+import { LandingPage } from '@/pages/public/LandingPage';
 import { CampaignPage } from '@/pages/public/CampaignPage';
 
 // Admin Pages (lazy loaded to keep public bundle ultra-lightweight)
@@ -46,8 +47,10 @@ export function App() {
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Main Landing Page */}
+          <Route path="/" element={<LandingPage />} />
+
           {/* Public Campaign Experience */}
-          <Route path="/" element={<CampaignPage />} />
           <Route path="/c/:slug" element={<CampaignPage />} />
 
           {/* Admin Authentication */}
