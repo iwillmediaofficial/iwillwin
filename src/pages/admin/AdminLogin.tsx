@@ -7,14 +7,12 @@ import { Sparkles, Lock, Mail, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isAdmin, signInWithPassword, signUpWithPassword } = useAuth();
+  const { user, isAdmin, signInWithPassword } = useAuth();
 
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (user && isAdmin) {
@@ -25,28 +23,15 @@ export const AdminLogin: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccessMsg(null);
     setIsLoading(true);
 
-    if (isSignUp) {
-      const { error: signUpError } = await signUpWithPassword(email, password);
-      setIsLoading(false);
-      if (signUpError) {
-        setError(signUpError.message);
-      } else {
-        setSuccessMsg('Account created successfully! Logging you into the admin console...');
-        setTimeout(() => {
-          navigate('/admin');
-        }, 1200);
-      }
+    const { error: signInError } = await signInWithPassword(email, password);
+    setIsLoading(false);
+
+    if (signInError) {
+      setError(signInError.message || 'Invalid email or password.');
     } else {
-      const { error: signInError } = await signInWithPassword(email, password);
-      setIsLoading(false);
-      if (signInError) {
-        setError(signInError.message || 'Invalid email or password.');
-      } else {
-        navigate('/admin');
-      }
+      navigate('/admin');
     }
   };
 
@@ -74,7 +59,7 @@ export const AdminLogin: React.FC = () => {
           </div>
           <h1 className="text-2xl font-black text-white font-display">IWILLWIN</h1>
           <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mt-0.5">
-            Admin Management Console
+            Admin & Client Portal
           </p>
         </div>
 
@@ -85,16 +70,9 @@ export const AdminLogin: React.FC = () => {
           </div>
         )}
 
-        {successMsg && (
-          <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-center space-x-2">
-            <Sparkles className="w-4 h-4 flex-shrink-0" />
-            <span>{successMsg}</span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="flex flex-col space-y-4">
           <Input
-            label="Admin Email"
+            label="Email Address"
             type="email"
             placeholder="admin@iwillwin.com"
             value={email}
@@ -112,7 +90,7 @@ export const AdminLogin: React.FC = () => {
             onChange={(e) => setPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
             required
-            autoComplete={isSignUp ? 'new-password' : 'current-password'}
+            autoComplete="current-password"
           />
 
           <Button
@@ -122,24 +100,14 @@ export const AdminLogin: React.FC = () => {
             size="lg"
             className="w-full font-bold shadow-glow-sm mt-2"
           >
-            {isSignUp ? 'Create Admin Account' : 'Sign In to Admin Portal'}
+            Sign In to Console
           </Button>
         </form>
 
         <div className="mt-6 pt-4 border-t border-slate-800 text-center">
-          <button
-            type="button"
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError(null);
-              setSuccessMsg(null);
-            }}
-            className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors"
-          >
-            {isSignUp
-              ? 'Already have an admin account? Sign In'
-              : 'Need another admin account? Register New Admin'}
-          </button>
+          <p className="text-[11px] text-slate-500">
+            🔒 Protected Area. Contact your Super Administrator for account credentials.
+          </p>
         </div>
       </div>
     </div>

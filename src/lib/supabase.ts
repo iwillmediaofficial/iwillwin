@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Campaign, ParticipationResponse } from '@/types/database';
+import type { Campaign, ParticipationResponse, ClientUserItem } from '@/types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rowuebmnqurugubichta.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvd3VlYm1ucXVydWd1YmljaHRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODA0NzMsImV4cCI6MjEwMjk1NjQ3M30.csQYvIG4R8IZ0BwOp3IKYuZ0_U3L0N9i5ISN6RiOmiY';
@@ -113,7 +113,68 @@ export async function uploadCampaignAsset(file: File, folder = 'uploads'): Promi
 }
 
 /**
- * Admin Stats Fetcher
+ * Super Admin Client Management Helpers
+ */
+export async function adminGetClients(): Promise<{ success: boolean; data?: ClientUserItem[]; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_get_clients');
+    if (error) throw error;
+    return data as { success: boolean; data?: ClientUserItem[]; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to fetch client accounts' };
+  }
+}
+
+export async function adminCreateClient(
+  email: string,
+  password: string,
+  campaignIds: string[]
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_create_client', {
+      p_email: email,
+      p_password: password,
+      p_campaign_ids: campaignIds,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to create client user' };
+  }
+}
+
+export async function adminUpdateClient(
+  userId: string,
+  password?: string | null,
+  campaignIds?: string[] | null
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_update_client', {
+      p_user_id: userId,
+      p_password: password || null,
+      p_campaign_ids: campaignIds || null,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to update client user' };
+  }
+}
+
+export async function adminDeleteClient(userId: string): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_client', {
+      p_user_id: userId,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to delete client user' };
+  }
+}
+
+/**
+ * Admin Dashboard Stats Fetcher
  */
 export async function getAdminDashboardStats() {
   const [leadsCount, revealedCount, campaignsCount, prizes] = await Promise.all([

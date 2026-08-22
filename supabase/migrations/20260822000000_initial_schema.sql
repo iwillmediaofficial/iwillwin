@@ -85,9 +85,18 @@ CREATE TABLE IF NOT EXISTS public.admin_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_user_id UUID UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL DEFAULT 'admin' CHECK (role IN ('admin', 'super_admin')),
+    role VARCHAR(50) NOT NULL DEFAULT 'client' CHECK (role IN ('super_admin', 'client', 'admin')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 6. CAMPAIGN USER ASSIGNMENTS TABLE (MULTI-TENANCY)
+CREATE TABLE IF NOT EXISTS public.campaign_user_assignments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    campaign_id UUID NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, campaign_id)
 );
 
 -- INDEXES
@@ -99,7 +108,51 @@ CREATE INDEX IF NOT EXISTS idx_leads_campaign_id ON public.leads(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_leads_mobile ON public.leads(campaign_id, mobile);
 CREATE INDEX IF NOT EXISTS idx_leads_email ON public.leads(campaign_id, email);
 CREATE INDEX IF NOT EXISTS idx_leads_claim_code ON public.leads(claim_code);
-CREATE INDEX IF NOT EXISTS idx_prize_allocations_hourly ON public.prize_allocations(prize_id, allocated_at);
+CREATE INDEX IF NOT EXISTS idx_campaign_assignments_user ON public.campaign_user_assignments(user_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_assignments_camp ON public.campaign_user_assignments(campaign_id);
+
+-- SECURITY HELPER FUNCTIONS
+CREATE OR REPLACE FUNCTION public.is_super_admin()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.admin_profiles
+        WHERE auth_user_id = auth.uid()
+          AND role = 'super_admin'
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_admin_or_client()
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.admin_profiles
+        WHERE auth_user_id = auth.uid()
+          AND role IN ('super_admin', 'client', 'admin')
+    );
+$$;
+
+CREATE OR REPLACE FUNCTION public.has_campaign_access(p_campaign_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public, pg_temp
+AS $$
+    SELECT public.is_super_admin() OR EXISTS (
+        SELECT 1 FROM public.campaign_user_assignments
+        WHERE user_id = auth.uid()
+          AND campaign_id = p_campaign_id
+    );
+$$;
 
 -- ROW LEVEL SECURITY (RLS)
 ALTER TABLE public.campaigns ENABLE ROW LEVEL SECURITY;
@@ -107,37 +160,256 @@ ALTER TABLE public.prizes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prize_allocations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.admin_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.campaign_user_assignments ENABLE ROW LEVEL SECURITY;
 
-CREATE OR REPLACE FUNCTION public.is_admin()
-RETURNS BOOLEAN
-LANGUAGE sql
+-- Campaigns RLS
+DROP POLICY IF EXISTS "Public can view active campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Admins have full access to campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Users can view accessible campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Super admins can insert campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Users can update accessible campaigns" ON public.campaigns;
+DROP POLICY IF EXISTS "Super admins can delete campaigns" ON public.campaigns;
+
+CREATE POLICY "Users can view accessible campaigns" ON public.campaigns
+FOR SELECT TO public
+USING (status = 'Active' OR public.has_campaign_access(id));
+
+CREATE POLICY "Super admins can insert campaigns" ON public.campaigns
+FOR INSERT TO authenticated
+WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Users can update accessible campaigns" ON public.campaigns
+FOR UPDATE TO authenticated
+USING (public.has_campaign_access(id))
+WITH CHECK (public.has_campaign_access(id));
+
+CREATE POLICY "Super admins can delete campaigns" ON public.campaigns
+FOR DELETE TO authenticated
+USING (public.is_super_admin());
+
+-- Prizes RLS
+DROP POLICY IF EXISTS "Admins have full access to prizes" ON public.prizes;
+DROP POLICY IF EXISTS "Users have full access to accessible prizes" ON public.prizes;
+
+CREATE POLICY "Users have full access to accessible prizes" ON public.prizes
+FOR ALL TO authenticated
+USING (public.has_campaign_access(campaign_id))
+WITH CHECK (public.has_campaign_access(campaign_id));
+
+-- Leads RLS
+DROP POLICY IF EXISTS "Admins have full access to leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can view accessible leads" ON public.leads;
+DROP POLICY IF EXISTS "Users can update accessible leads" ON public.leads;
+DROP POLICY IF EXISTS "Super admins can delete leads" ON public.leads;
+
+CREATE POLICY "Users can view accessible leads" ON public.leads
+FOR SELECT TO authenticated
+USING (public.has_campaign_access(campaign_id));
+
+CREATE POLICY "Users can update accessible leads" ON public.leads
+FOR UPDATE TO authenticated
+USING (public.has_campaign_access(campaign_id))
+WITH CHECK (public.has_campaign_access(campaign_id));
+
+CREATE POLICY "Super admins can delete leads" ON public.leads
+FOR DELETE TO authenticated
+USING (public.is_super_admin());
+
+-- Assignments RLS
+DROP POLICY IF EXISTS "View campaign assignments" ON public.campaign_user_assignments;
+DROP POLICY IF EXISTS "Super admins manage campaign assignments" ON public.campaign_user_assignments;
+
+CREATE POLICY "View campaign assignments" ON public.campaign_user_assignments
+FOR SELECT TO authenticated
+USING (public.is_super_admin() OR user_id = auth.uid());
+
+CREATE POLICY "Super admins manage campaign assignments" ON public.campaign_user_assignments
+FOR ALL TO authenticated
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
+
+-- Admin Profiles RLS
+DROP POLICY IF EXISTS "Users can view own admin profile" ON public.admin_profiles;
+DROP POLICY IF EXISTS "Super admins can manage admin profiles" ON public.admin_profiles;
+
+CREATE POLICY "Users can view own admin profile" ON public.admin_profiles
+FOR SELECT TO authenticated
+USING (auth_user_id = auth.uid() OR public.is_super_admin());
+
+CREATE POLICY "Super admins can manage admin profiles" ON public.admin_profiles
+FOR ALL TO authenticated
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
+
+-- ATOMIC CLIENT MANAGEMENT PROCEDURES
+CREATE OR REPLACE FUNCTION public.admin_create_client(
+    p_email TEXT,
+    p_password TEXT,
+    p_campaign_ids UUID[]
+)
+RETURNS JSONB
+LANGUAGE plpgsql
 SECURITY DEFINER
-STABLE
+SET search_path = public, auth, extensions, pg_temp
 AS $$
-    SELECT EXISTS (
-        SELECT 1 FROM public.admin_profiles
-        WHERE auth_user_id = auth.uid()
-          AND role IN ('admin', 'super_admin')
+DECLARE
+    v_user_id UUID;
+    v_encrypted_pw TEXT;
+    v_cid UUID;
+BEGIN
+    IF NOT public.is_super_admin() THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied: Only Super Admins can create client users.');
+    END IF;
+
+    IF p_email IS NULL OR p_email NOT LIKE '%_@__%.__%' THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Invalid email address.');
+    END IF;
+
+    IF p_password IS NULL OR LENGTH(p_password) < 6 THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Password must be at least 6 characters.');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM auth.users WHERE email = LOWER(TRIM(p_email))) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'A user with this email already exists.');
+    END IF;
+
+    v_user_id := gen_random_uuid();
+    v_encrypted_pw := crypt(p_password, gen_salt('bf'));
+
+    INSERT INTO auth.users (
+        instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
+        raw_app_meta_data, raw_user_meta_data, is_super_admin, created_at, updated_at
+    ) VALUES (
+        '00000000-0000-0000-0000-000000000000', v_user_id, 'authenticated', 'authenticated',
+        LOWER(TRIM(p_email)), v_encrypted_pw, NOW(),
+        '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, false, NOW(), NOW()
     );
+
+    INSERT INTO auth.identities (
+        id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at
+    ) VALUES (
+        gen_random_uuid(), v_user_id, jsonb_build_object('sub', v_user_id::text, 'email', LOWER(TRIM(p_email))),
+        'email', LOWER(TRIM(p_email)), NOW(), NOW(), NOW()
+    );
+
+    INSERT INTO public.admin_profiles (auth_user_id, email, role)
+    VALUES (v_user_id, LOWER(TRIM(p_email)), 'client')
+    ON CONFLICT (auth_user_id) DO UPDATE SET role = 'client';
+
+    IF p_campaign_ids IS NOT NULL AND array_length(p_campaign_ids, 1) > 0 THEN
+        FOREACH v_cid IN ARRAY p_campaign_ids LOOP
+            INSERT INTO public.campaign_user_assignments (user_id, campaign_id)
+            VALUES (v_user_id, v_cid)
+            ON CONFLICT DO NOTHING;
+        END LOOP;
+    END IF;
+
+    RETURN jsonb_build_object('success', true, 'user_id', v_user_id, 'email', LOWER(TRIM(p_email)));
+END;
 $$;
 
-DROP POLICY IF EXISTS "Public can view active campaigns" ON public.campaigns;
-CREATE POLICY "Public can view active campaigns" ON public.campaigns FOR SELECT TO public USING (status = 'Active');
+CREATE OR REPLACE FUNCTION public.admin_update_client(
+    p_user_id UUID,
+    p_password TEXT DEFAULT NULL,
+    p_campaign_ids UUID[] DEFAULT NULL
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions, pg_temp
+AS $$
+DECLARE
+    v_cid UUID;
+BEGIN
+    IF NOT public.is_super_admin() THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied.');
+    END IF;
 
-DROP POLICY IF EXISTS "Admins have full access to campaigns" ON public.campaigns;
-CREATE POLICY "Admins have full access to campaigns" ON public.campaigns FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = p_user_id) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'User not found.');
+    END IF;
 
-DROP POLICY IF EXISTS "Admins have full access to prizes" ON public.prizes;
-CREATE POLICY "Admins have full access to prizes" ON public.prizes FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+    IF p_password IS NOT NULL AND LENGTH(p_password) >= 6 THEN
+        UPDATE auth.users
+        SET encrypted_password = crypt(p_password, gen_salt('bf')), updated_at = NOW()
+        WHERE id = p_user_id;
+    END IF;
 
-DROP POLICY IF EXISTS "Admins have full access to leads" ON public.leads;
-CREATE POLICY "Admins have full access to leads" ON public.leads FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+    IF p_campaign_ids IS NOT NULL THEN
+        DELETE FROM public.campaign_user_assignments WHERE user_id = p_user_id;
+        
+        IF array_length(p_campaign_ids, 1) > 0 THEN
+            FOREACH v_cid IN ARRAY p_campaign_ids LOOP
+                INSERT INTO public.campaign_user_assignments (user_id, campaign_id)
+                VALUES (p_user_id, v_cid)
+                ON CONFLICT DO NOTHING;
+            END LOOP;
+        END IF;
+    END IF;
 
-DROP POLICY IF EXISTS "Admins have full access to allocations" ON public.prize_allocations;
-CREATE POLICY "Admins have full access to allocations" ON public.prize_allocations FOR ALL TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
 
-DROP POLICY IF EXISTS "Users can view own admin profile" ON public.admin_profiles;
-CREATE POLICY "Users can view own admin profile" ON public.admin_profiles FOR SELECT TO authenticated USING (auth_user_id = auth.uid());
+CREATE OR REPLACE FUNCTION public.admin_delete_client(p_user_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+BEGIN
+    IF NOT public.is_super_admin() THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied.');
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.admin_profiles WHERE auth_user_id = p_user_id AND role = 'super_admin') THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Super Admin accounts cannot be deleted.');
+    END IF;
+
+    DELETE FROM auth.users WHERE id = p_user_id;
+    RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.admin_get_clients()
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+    v_result JSONB;
+BEGIN
+    IF NOT public.is_super_admin() THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied.');
+    END IF;
+
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'id', p.id,
+            'user_id', p.auth_user_id,
+            'email', p.email,
+            'role', p.role,
+            'created_at', p.created_at,
+            'assigned_campaigns', COALESCE(
+                (
+                    SELECT jsonb_agg(
+                        jsonb_build_object('id', c.id, 'name', c.name, 'slug', c.slug)
+                    )
+                    FROM public.campaign_user_assignments cua
+                    JOIN public.campaigns c ON cua.campaign_id = c.id
+                    WHERE cua.user_id = p.auth_user_id
+                ),
+                '[]'::jsonb
+            )
+        )
+    ) INTO v_result
+    FROM public.admin_profiles p
+    ORDER BY p.created_at DESC;
+
+    RETURN jsonb_build_object('success', true, 'data', COALESCE(v_result, '[]'::jsonb));
+END;
+$$;
 
 -- ATOMIC PRIZE ALLOCATION RPC PROCEDURE
 CREATE OR REPLACE FUNCTION public.participate_and_scratch(
@@ -401,4 +673,10 @@ $$;
 GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_scratch_revealed(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_campaign(TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.is_admin() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.is_admin_or_client() TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.has_campaign_access(UUID) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.admin_create_client(TEXT, TEXT, UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_update_client(UUID, TEXT, UUID[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_delete_client(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_get_clients() TO authenticated;

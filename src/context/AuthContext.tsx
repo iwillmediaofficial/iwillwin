@@ -8,9 +8,11 @@ interface AuthContextType {
   session: Session | null;
   adminProfile: AdminProfile | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  isClient: boolean;
+  assignedCampaignIds: string[];
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<{ error: Error | null }>;
-  signUpWithPassword: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshAdminStatus: () => Promise<void>;
 }
@@ -22,6 +24,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
+  const [isClient, setIsClient] = useState<boolean>(false);
+  const [assignedCampaignIds, setAssignedCampaignIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   const isCheckingRef = useRef(false);
@@ -30,6 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!authUser) {
       setAdminProfile(null);
       setIsAdmin(false);
+      setIsSuperAdmin(false);
+      setIsClient(false);
+      setAssignedCampaignIds([]);
       return false;
     }
 
@@ -45,40 +53,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (data && !error) {
-        setAdminProfile(data as AdminProfile);
+        const profile = data as AdminProfile;
+        setAdminProfile(profile);
         setIsAdmin(true);
+        setIsSuperAdmin(profile.role === 'super_admin');
+        setIsClient(profile.role === 'client');
+
+        // Fetch assigned campaigns for client
+        if (profile.role === 'client') {
+          const { data: assignments } = await supabase
+            .from('campaign_user_assignments')
+            .select('campaign_id')
+            .eq('user_id', authUser.id);
+
+          setAssignedCampaignIds(
+            (assignments || []).map((a: { campaign_id: string }) => a.campaign_id)
+          );
+        } else {
+          setAssignedCampaignIds([]);
+        }
+
         return true;
       }
 
-      // 2. If table is empty or first user, check is_admin() RPC
-      const { data: isAdm } = await supabase.rpc('is_admin');
-      if (isAdm) {
+      // 2. Check is_super_admin() RPC
+      const { data: isSuper } = await supabase.rpc('is_super_admin');
+      if (isSuper) {
         setIsAdmin(true);
+        setIsSuperAdmin(true);
+        setIsClient(false);
         return true;
       }
 
-      // 3. Fallback auto-link
-      const { data: newProf, error: insErr } = await supabase
-        .from('admin_profiles')
-        .insert({
-          auth_user_id: authUser.id,
-          email: authUser.email || '',
-          role: 'admin',
-        })
-        .select()
-        .maybeSingle();
-
-      if (newProf && !insErr) {
-        setAdminProfile(newProf as AdminProfile);
-        setIsAdmin(true);
-        return true;
-      } else {
-        setIsAdmin(false);
-        return false;
-      }
+      setIsAdmin(false);
+      setIsSuperAdmin(false);
+      setIsClient(false);
+      setAssignedCampaignIds([]);
+      return false;
     } catch (err) {
       console.error('Error verifying admin permissions:', err);
       setIsAdmin(false);
+      setIsSuperAdmin(false);
+      setIsClient(false);
+      setAssignedCampaignIds([]);
       return false;
     } finally {
       isCheckingRef.current = false;
@@ -108,7 +125,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
-      // Avoid refetching on simple token refresh if user is already established
       if (event === 'TOKEN_REFRESHED' && user?.id === newSession?.user?.id) {
         setSession(newSession);
         return;
@@ -122,6 +138,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setAdminProfile(null);
         setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setIsClient(false);
+        setAssignedCampaignIds([]);
       }
       if (mounted) setLoading(false);
     });
@@ -150,30 +169,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUpWithPassword = async (email: string, password: string) => {
-    try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-      if (error) return { error };
-      if (data.user) {
-        setUser(data.user);
-        setSession(data.session);
-        await fetchAdminProfile(data.user);
-      }
-      return { error: null };
-    } catch (err: any) {
-      return { error: err };
-    }
-  };
-
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setSession(null);
     setAdminProfile(null);
     setIsAdmin(false);
+    setIsSuperAdmin(false);
+    setIsClient(false);
+    setAssignedCampaignIds([]);
   };
 
   const refreshAdminStatus = async () => {
@@ -189,9 +193,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         adminProfile,
         isAdmin,
+        isSuperAdmin,
+        isClient,
+        assignedCampaignIds,
         loading,
         signInWithPassword,
-        signUpWithPassword,
         signOut,
         refreshAdminStatus,
       }}

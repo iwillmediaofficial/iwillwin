@@ -1,6 +1,6 @@
 export type CampaignStatus = 'Draft' | 'Active' | 'Paused' | 'Completed';
 export type ScratchStatus = 'Pending' | 'Revealed';
-export type AdminRole = 'admin' | 'super_admin';
+export type AdminRole = 'super_admin' | 'client' | 'admin';
 
 export interface Campaign {
   id: string;
@@ -85,6 +85,13 @@ export interface PrizeAllocation {
   allocated_at: string;
 }
 
+export interface CampaignUserAssignment {
+  id: string;
+  user_id: string;
+  campaign_id: string;
+  created_at: string;
+}
+
 export interface AdminProfile {
   id: string;
   auth_user_id: string;
@@ -92,6 +99,19 @@ export interface AdminProfile {
   role: AdminRole;
   created_at: string;
   updated_at: string;
+}
+
+export interface ClientUserItem {
+  id: string;
+  user_id: string;
+  email: string;
+  role: AdminRole;
+  created_at: string;
+  assigned_campaigns: {
+    id: string;
+    name: string;
+    slug: string;
+  }[];
 }
 
 export interface AllocatedPrizeData {

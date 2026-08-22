@@ -25,6 +25,9 @@ const PrizesPage = lazy(() =>
 const LeadsPage = lazy(() =>
   import('@/pages/admin/LeadsPage').then((m) => ({ default: m.LeadsPage }))
 );
+const UsersPage = lazy(() =>
+  import('@/pages/admin/UsersPage').then((m) => ({ default: m.UsersPage }))
+);
 const SettingsPage = lazy(() =>
   import('@/pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -70,6 +73,7 @@ export function App() {
             <Route path="campaigns" element={<CampaignsPage />} />
             <Route path="prizes" element={<PrizesPage />} />
             <Route path="leads" element={<LeadsPage />} />
+            <Route path="users" element={<UsersPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
