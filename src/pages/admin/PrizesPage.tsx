@@ -5,6 +5,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PrizeModal } from '@/components/admin/PrizeModal';
 import { PrizeDesktopTable } from '@/components/admin/PrizeDesktopTable';
 import { PrizeMobileCard } from '@/components/admin/PrizeMobileCard';
+import { UpcomingPrizesQueue } from '@/components/admin/UpcomingPrizesQueue';
 import { Button } from '@/components/common/Button';
 import { animateCardStagger } from '@/lib/gsap';
 import type { Prize, Campaign } from '@/types/database';
@@ -154,7 +155,7 @@ export const PrizesPage: React.FC = () => {
             <div className="flex items-center space-x-2">
               <Filter className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <select
-                className="bg-slate-950 text-slate-200 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="bg-slate-950 text-slate-200 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
                 value={selectedCampaignId}
                 onChange={(e) => {
                   setSelectedCampaignId(e.target.value);
@@ -211,7 +212,7 @@ export const PrizesPage: React.FC = () => {
             </Button>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col space-y-6">
             {/* Desktop Table View */}
             <div className="hidden lg:block">
               <PrizeDesktopTable
@@ -243,7 +244,10 @@ export const PrizesPage: React.FC = () => {
                 />
               ))}
             </div>
-          </>
+
+            {/* Collapsible Upcoming 10 Prizes Queue in Order */}
+            <UpcomingPrizesQueue prizes={prizes} />
+          </div>
         )}
       </div>
 
