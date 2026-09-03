@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Lead } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Badge } from '@/components/common/Badge';
+import { Button } from '@/components/common/Button';
 import { formatDate } from '@/lib/utils';
 import {
   Phone,
@@ -15,18 +16,23 @@ import {
   ShieldCheck,
   Copy,
   Check,
+  CheckCircle2,
 } from 'lucide-react';
 
 interface LeadDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead: Lead | null;
+  onToggleClaimStatus?: (lead: Lead) => Promise<void>;
+  isUpdatingClaim?: boolean;
 }
 
 export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
   isOpen,
   onClose,
   lead,
+  onToggleClaimStatus,
+  isUpdatingClaim = false,
 }) => {
   const [copied, setCopied] = useState(false);
 
@@ -40,12 +46,14 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     }
   };
 
+  const isClaimed = lead.claim_status === 'Claimed';
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title="Participant Details"
-      description="Detailed participation and prize allocation record."
+      description="Detailed participation, prize verification, and claim status record."
       maxWidth="md"
     >
       <div className="flex flex-col space-y-4 pt-1">
@@ -58,11 +66,58 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
             <h4 className="text-base font-bold text-white truncate">
               {lead.name || 'Anonymous Player'}
             </h4>
-            <div className="flex items-center space-x-2 mt-0.5">
+            <div className="flex items-center space-x-2 mt-1">
               <Badge status={lead.scratch_status} />
-              <span className="text-[11px] text-slate-400">ID: {lead.id.slice(0, 8)}...</span>
+              <Badge status={lead.claim_status || 'Unclaimed'} />
+              <span className="text-[11px] text-slate-500 font-mono">ID: {lead.id.slice(0, 8)}...</span>
             </div>
           </div>
+        </div>
+
+        {/* Claim Status Action Card */}
+        <div
+          className={`p-3.5 rounded-2xl border flex items-center justify-between transition-all ${
+            isClaimed
+              ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-300'
+              : 'bg-amber-950/20 border-amber-500/30 text-amber-300'
+          }`}
+        >
+          <div className="flex items-center space-x-3">
+            <div
+              className={`p-2 rounded-xl ${
+                isClaimed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-400'
+              }`}
+            >
+              {isClaimed ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+            </div>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <span className="text-xs font-bold uppercase tracking-wider">
+                  Lead Status: {lead.claim_status || 'Unclaimed'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {isClaimed
+                  ? lead.claimed_at
+                    ? `Claimed on ${formatDate(lead.claimed_at)}`
+                    : 'Prize has been claimed by the winner'
+                  : 'Customer has not yet claimed this prize at your store'}
+              </p>
+            </div>
+          </div>
+
+          {onToggleClaimStatus && (
+            <Button
+              type="button"
+              variant={isClaimed ? 'secondary' : 'gold'}
+              size="sm"
+              isLoading={isUpdatingClaim}
+              onClick={() => onToggleClaimStatus(lead)}
+              className="text-xs font-bold"
+            >
+              {isClaimed ? 'Mark Unclaimed' : 'Set as Claimed'}
+            </Button>
+          )}
         </div>
 
         {/* Winning Claim Code Card */}

@@ -189,6 +189,22 @@ export async function adminSetCampaignClients(
   }
 }
 
+export async function updateLeadClaimStatus(
+  leadId: string,
+  claimStatus: 'Claimed' | 'Unclaimed'
+): Promise<{ success: boolean; data?: any; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('update_lead_claim_status', {
+      p_lead_id: leadId,
+      p_claim_status: claimStatus,
+    });
+    if (error) throw error;
+    return data as { success: boolean; data?: any; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to update claim status' };
+  }
+}
+
 /**
  * Admin Dashboard Stats Fetcher
  */

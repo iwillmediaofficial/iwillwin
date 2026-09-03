@@ -18,10 +18,14 @@ export const Badge: React.FC<BadgeProps> = ({ status, variant, children, classNa
       case 'Active':
       case 'Revealed':
       case 'active':
+      case 'Claimed':
+      case 'claimed':
         computedVariant = 'success';
         break;
       case 'Draft':
       case 'Pending':
+      case 'Unclaimed':
+      case 'unclaimed':
         computedVariant = 'warning';
         break;
       case 'Paused':

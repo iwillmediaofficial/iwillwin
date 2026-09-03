@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
     claim_code VARCHAR(50),
     prize_id UUID REFERENCES public.prizes(id) ON DELETE SET NULL,
     scratch_status VARCHAR(20) NOT NULL DEFAULT 'Pending' CHECK (scratch_status IN ('Pending', 'Revealed')),
+    claim_status VARCHAR(20) NOT NULL DEFAULT 'Unclaimed' CHECK (claim_status IN ('Unclaimed', 'Claimed')),
+    claimed_at TIMESTAMPTZ,
     ip_address VARCHAR(100),
     user_agent TEXT,
     participated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -741,6 +743,54 @@ BEGIN
 END;
 $$;
 
+-- UPDATE LEAD CLAIM STATUS
+CREATE OR REPLACE FUNCTION public.update_lead_claim_status(
+    p_lead_id UUID,
+    p_claim_status TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_lead RECORD;
+    v_now TIMESTAMPTZ := NOW();
+    v_new_claimed_at TIMESTAMPTZ;
+BEGIN
+    IF p_claim_status NOT IN ('Claimed', 'Unclaimed') THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Invalid claim status. Must be Claimed or Unclaimed.');
+    END IF;
+
+    SELECT * INTO v_lead FROM public.leads WHERE id = p_lead_id;
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Lead not found.');
+    END IF;
+
+    IF NOT public.has_campaign_access(v_lead.campaign_id) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied to this campaign lead.');
+    END IF;
+
+    IF p_claim_status = 'Claimed' THEN
+        v_new_claimed_at := v_now;
+    ELSE
+        v_new_claimed_at := NULL;
+    END IF;
+
+    UPDATE public.leads
+    SET claim_status = p_claim_status,
+        claimed_at = v_new_claimed_at
+    WHERE id = p_lead_id;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'lead_id', p_lead_id,
+        'claim_status', p_claim_status,
+        'claimed_at', v_new_claimed_at
+    );
+END;
+$$;
+
 -- GRANT PERMISSIONS
 GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_scratch_revealed(UUID) TO anon, authenticated;
@@ -752,3 +802,5 @@ GRANT EXECUTE ON FUNCTION public.admin_create_client(TEXT, TEXT, UUID[]) TO auth
 GRANT EXECUTE ON FUNCTION public.admin_update_client(UUID, TEXT, UUID[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_delete_client(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_get_clients() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.update_lead_claim_status(UUID, TEXT) TO authenticated;
+

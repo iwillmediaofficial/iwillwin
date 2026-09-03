@@ -1,5 +1,6 @@
 export type CampaignStatus = 'Draft' | 'Active' | 'Paused' | 'Completed';
 export type ScratchStatus = 'Pending' | 'Revealed';
+export type ClaimStatus = 'Unclaimed' | 'Claimed';
 export type AdminRole = 'super_admin' | 'client' | 'admin';
 
 export interface Campaign {
@@ -60,6 +61,8 @@ export interface Lead {
   claim_code?: string | null;
   prize_id: string | null;
   scratch_status: ScratchStatus;
+  claim_status: ClaimStatus;
+  claimed_at?: string | null;
   ip_address: string | null;
   user_agent: string | null;
   participated_at: string;

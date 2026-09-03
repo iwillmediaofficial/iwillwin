@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase, updateLeadClaimStatus } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { LeadDetailModal } from '@/components/admin/LeadDetailModal';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
-import { formatDate, exportToCsv } from '@/lib/utils';
-import type { Lead, Campaign } from '@/types/database';
+import { formatDate, exportToCsv, cn } from '@/lib/utils';
+import type { Lead, Campaign, ClaimStatus } from '@/types/database';
 import {
   Search,
   Download,
@@ -16,6 +16,9 @@ import {
   ChevronRight,
   Cake,
   ShieldCheck,
+  CheckCircle2,
+  Clock,
+  Loader2,
 } from 'lucide-react';
 
 const PAGE_SIZE = 15;
@@ -33,10 +36,12 @@ export const LeadsPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
+  const [selectedClaimStatus, setSelectedClaimStatus] = useState<string>('all');
 
-  // Detail Modal
+  // Detail Modal & Action States
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
 
   // Fetch Campaigns
   useEffect(() => {
@@ -66,6 +71,10 @@ export const LeadsPage: React.FC = () => {
         query = query.eq('scratch_status', selectedStatus);
       }
 
+      if (selectedClaimStatus !== 'all') {
+        query = query.eq('claim_status', selectedClaimStatus);
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.trim();
         query = query.or(`name.ilike.%${q}%,mobile.ilike.%${q}%,email.ilike.%${q}%,claim_code.ilike.%${q}%`);
@@ -91,12 +100,49 @@ export const LeadsPage: React.FC = () => {
 
   useEffect(() => {
     fetchLeads();
-  }, [currentPage, selectedCampaignId, selectedStatus]);
+  }, [currentPage, selectedCampaignId, selectedStatus, selectedClaimStatus]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
     fetchLeads();
+  };
+
+  // Toggle Claim Status Handler (Claimed <-> Unclaimed)
+  const handleToggleClaimStatus = async (lead: Lead) => {
+    const nextStatus: ClaimStatus = lead.claim_status === 'Claimed' ? 'Unclaimed' : 'Claimed';
+    setUpdatingLeadId(lead.id);
+
+    try {
+      const res = await updateLeadClaimStatus(lead.id, nextStatus);
+      if (!res.success) {
+        throw new Error(res.message || 'Failed to update claim status');
+      }
+
+      const updatedClaimedAt = nextStatus === 'Claimed' ? new Date().toISOString() : null;
+
+      // Optimistically update list in place
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === lead.id
+            ? { ...l, claim_status: nextStatus, claimed_at: updatedClaimedAt }
+            : l
+        )
+      );
+
+      // Also update selected lead if open in modal
+      if (selectedLead && selectedLead.id === lead.id) {
+        setSelectedLead((prev) =>
+          prev
+            ? { ...prev, claim_status: nextStatus, claimed_at: updatedClaimedAt }
+            : null
+        );
+      }
+    } catch (err: any) {
+      alert(`Error updating claim status: ${err.message}`);
+    } finally {
+      setUpdatingLeadId(null);
+    }
   };
 
   // CSV Export Handler
@@ -112,6 +158,10 @@ export const LeadsPage: React.FC = () => {
 
       if (selectedStatus !== 'all') {
         exportQuery = exportQuery.eq('scratch_status', selectedStatus);
+      }
+
+      if (selectedClaimStatus !== 'all') {
+        exportQuery = exportQuery.eq('claim_status', selectedClaimStatus);
       }
 
       const { data, error } = await exportQuery.order('created_at', { ascending: false });
@@ -132,6 +182,8 @@ export const LeadsPage: React.FC = () => {
         'Campaign Name': lead.campaign?.name || '',
         'Prize Won': lead.prize?.name || 'None',
         'Scratch Status': lead.scratch_status,
+        'Claim Status': lead.claim_status || 'Unclaimed',
+        'Claimed At': lead.claimed_at ? formatDate(lead.claimed_at) : 'Not Claimed',
         'Participated At': formatDate(lead.participated_at),
         'Revealed At': formatDate(lead.revealed_at),
         'IP Address': lead.ip_address || '',
@@ -151,7 +203,7 @@ export const LeadsPage: React.FC = () => {
     <div className="flex-1 flex flex-col min-w-0 pb-12">
       <AdminHeader
         title="Leads & Participants"
-        description="Search, view, filter, and export promotional participants, unique winning codes, and allocated prizes"
+        description="Search, view, filter, track Claimed/Unclaimed prizes, and export promotional participants"
         onOpenMobileMenu={openMobileMenu}
         actions={
           <Button
@@ -189,7 +241,7 @@ export const LeadsPage: React.FC = () => {
             </Button>
           </form>
 
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Campaign Filter */}
             <select
               className="bg-slate-950 text-slate-200 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -207,7 +259,7 @@ export const LeadsPage: React.FC = () => {
               ))}
             </select>
 
-            {/* Status Filter */}
+            {/* Scratch Status Filter */}
             <select
               className="bg-slate-950 text-slate-200 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
               value={selectedStatus}
@@ -219,6 +271,20 @@ export const LeadsPage: React.FC = () => {
               <option value="all">All Scratch Statuses</option>
               <option value="Revealed">Revealed Only</option>
               <option value="Pending">Pending Only</option>
+            </select>
+
+            {/* Claim Status Filter */}
+            <select
+              className="bg-slate-950 text-slate-200 rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-400"
+              value={selectedClaimStatus}
+              onChange={(e) => {
+                setSelectedClaimStatus(e.target.value);
+                setCurrentPage(1);
+              }}
+            >
+              <option value="all">All Claim Statuses</option>
+              <option value="Claimed">Claimed Only</option>
+              <option value="Unclaimed">Unclaimed Only</option>
             </select>
           </div>
         </div>
@@ -244,91 +310,130 @@ export const LeadsPage: React.FC = () => {
                   <th className="py-3.5 px-4 font-semibold">Campaign</th>
                   <th className="py-3.5 px-4 font-semibold">Allocated Prize</th>
                   <th className="py-3.5 px-4 font-semibold">Participated</th>
-                  <th className="py-3.5 px-4 font-semibold text-center">Status</th>
+                  <th className="py-3.5 px-4 font-semibold text-center">Scratch</th>
+                  <th className="py-3.5 px-4 font-semibold text-center">Claim Status</th>
                   <th className="py-3.5 px-4 font-semibold text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/70">
-                {leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 font-bold text-white">
-                      <div>{lead.name || 'Anonymous'}</div>
-                      {lead.claim_code && (
-                        <div className="text-[11px] text-amber-300 font-mono flex items-center space-x-1 mt-0.5">
-                          <ShieldCheck className="w-3 h-3 text-amber-400" />
-                          <span>{lead.claim_code}</span>
-                        </div>
-                      )}
-                      {lead.dob && (
-                        <div className="text-[11px] text-pink-300 font-normal flex items-center space-x-1 mt-0.5">
-                          <Cake className="w-3 h-3 text-pink-400" />
-                          <span>DOB: {lead.dob}</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-300">
-                      <div>{lead.mobile || '—'}</div>
-                      {lead.email && <div className="text-slate-400">{lead.email}</div>}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-300">
-                      {lead.campaign?.name || '—'}
-                    </td>
-                    <td className="py-3 px-4 text-xs font-semibold text-amber-300">
-                      {lead.prize?.name || 'No Prize'}
-                    </td>
-                    <td className="py-3 px-4 text-xs text-slate-400">
-                      {formatDate(lead.participated_at)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge status={lead.scratch_status} />
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <button
-                        onClick={() => {
-                          setSelectedLead(lead);
-                          setIsDetailOpen(true);
-                        }}
-                        className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors"
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {leads.map((lead) => {
+                  const isClaimed = lead.claim_status === 'Claimed';
+                  const isUpdating = updatingLeadId === lead.id;
+
+                  return (
+                    <tr key={lead.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3 px-4 font-bold text-white">
+                        <div>{lead.name || 'Anonymous'}</div>
+                        {lead.claim_code && (
+                          <div className="text-[11px] text-amber-300 font-mono flex items-center space-x-1 mt-0.5">
+                            <ShieldCheck className="w-3 h-3 text-amber-400" />
+                            <span>{lead.claim_code}</span>
+                          </div>
+                        )}
+                        {lead.dob && (
+                          <div className="text-[11px] text-pink-300 font-normal flex items-center space-x-1 mt-0.5">
+                            <Cake className="w-3 h-3 text-pink-400" />
+                            <span>DOB: {lead.dob}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-300">
+                        <div>{lead.mobile || '—'}</div>
+                        {lead.email && <div className="text-slate-400">{lead.email}</div>}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-300">
+                        {lead.campaign?.name || '—'}
+                      </td>
+                      <td className="py-3 px-4 text-xs font-semibold text-amber-300">
+                        {lead.prize?.name || 'No Prize'}
+                      </td>
+                      <td className="py-3 px-4 text-xs text-slate-400">
+                        {formatDate(lead.participated_at)}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <Badge status={lead.scratch_status} />
+                      </td>
+
+                      {/* Interactive Claim Status Button */}
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleClaimStatus(lead)}
+                          disabled={isUpdating}
+                          className={cn(
+                            'inline-flex items-center space-x-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer shadow-sm',
+                            isClaimed
+                              ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25 hover:border-emerald-400'
+                              : 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-400'
+                          )}
+                          title={
+                            isClaimed
+                              ? `Claimed on ${formatDate(lead.claimed_at)}. Click to mark as Unclaimed.`
+                              : 'Click to mark as Claimed'
+                          }
+                        >
+                          {isUpdating ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : isClaimed ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          ) : (
+                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                          )}
+                          <span>{lead.claim_status || 'Unclaimed'}</span>
+                        </button>
+                      </td>
+
+                      <td className="py-3 px-4 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedLead(lead);
+                            setIsDetailOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Pagination Controls */}
-        {totalCount > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-2 pt-2 text-xs text-slate-400">
-            <span>
-              Showing {(currentPage - 1) * PAGE_SIZE + 1} to{' '}
-              {Math.min(currentPage * PAGE_SIZE, totalCount)} of {totalCount} leads
-            </span>
+        {/* Pagination */}
+        {totalCount > 0 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400 pt-2">
+            <div>
+              Showing <span className="font-semibold text-slate-200">{(currentPage - 1) * PAGE_SIZE + 1}</span> to{' '}
+              <span className="font-semibold text-slate-200">
+                {Math.min(currentPage * PAGE_SIZE, totalCount)}
+              </span>{' '}
+              of <span className="font-semibold text-slate-200">{totalCount}</span> participants
+            </div>
 
             <div className="flex items-center space-x-2">
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => p - 1)}
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1 || loading}
                 leftIcon={<ChevronLeft className="w-4 h-4" />}
               >
                 Previous
               </Button>
 
-              <span className="font-semibold text-slate-200">
+              <span className="px-3 py-1 font-semibold text-slate-300">
                 Page {currentPage} of {totalPages}
               </span>
 
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => p + 1)}
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages || loading}
                 rightIcon={<ChevronRight className="w-4 h-4" />}
               >
                 Next
@@ -342,6 +447,8 @@ export const LeadsPage: React.FC = () => {
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         lead={selectedLead}
+        onToggleClaimStatus={handleToggleClaimStatus}
+        isUpdatingClaim={Boolean(selectedLead && updatingLeadId === selectedLead.id)}
       />
     </div>
   );
