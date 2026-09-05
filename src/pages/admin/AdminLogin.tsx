@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
-import { Sparkles, Lock, Mail, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
@@ -54,10 +54,14 @@ export const AdminLogin: React.FC = () => {
       <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-md relative z-10">
         {/* Brand Icon */}
         <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black shadow-glow-sm mb-3">
-            <Sparkles className="w-7 h-7" />
-          </div>
-          <h1 className="text-2xl font-black text-white font-display">IWILLWIN</h1>
+          <img
+            src="/logo.png"
+            alt="IWILLWIN"
+            className="h-14 w-auto object-contain mb-2 drop-shadow-sm"
+          />
+          <span className="text-[10px] font-black tracking-[0.25em] text-slate-400 uppercase">
+            PLAY MORE • WIN MORE
+          </span>
           <p className="text-xs font-semibold text-amber-400 uppercase tracking-widest mt-0.5">
             Admin & Client Portal
           </p>

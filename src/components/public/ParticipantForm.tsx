@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Campaign } from '@/types/database';
-import { Input } from '@/components/common/Input';
-import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { User, Phone, Mail, CheckCircle2, Sparkles, ArrowDown, Lock, Calendar } from 'lucide-react';
+import {
+  User,
+  Phone,
+  Mail,
+  CheckCircle2,
+  Lock,
+  Calendar,
+  ChevronDown,
+  Gift,
+  ShieldCheck,
+  MessageCircle,
+} from 'lucide-react';
 import { animateShake, animateButtonReady } from '@/lib/gsap';
 
 interface ParticipantFormProps {
@@ -141,7 +150,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
 
     if (campaign.collect_dob && campaign.require_dob) {
       if (!birthDay || !birthMonth) {
-        errs.dob = 'Please select your Date of Birth (Day & Month)';
+        errs.dob = 'Please select your Date of Birth';
       }
     }
 
@@ -187,254 +196,317 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   };
 
   return (
-    <form
-      ref={formRef as any}
-      onSubmit={handleSubmit}
-      className="w-full max-w-sm sm:max-w-md mx-auto bg-slate-900/90 border border-slate-800/90 rounded-2xl p-5 sm:p-7 shadow-2xl backdrop-blur-md flex flex-col space-y-4"
-    >
-      {/* Form Fields Header */}
-      <div className="flex items-center justify-between pb-1">
-        <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-          Step 1: Enter Your Details
-        </span>
-        {isFormFilled ? (
-          <span className="text-xs font-semibold text-emerald-400 flex items-center space-x-1">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Details Completed</span>
+    <div className="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center space-y-5">
+      {/* Floating White Main Card */}
+      <form
+        ref={formRef as any}
+        onSubmit={handleSubmit}
+        className="w-full bg-white border border-slate-100 rounded-3xl p-5 sm:p-7 shadow-xl shadow-slate-200/60 flex flex-col space-y-4 text-left transition-all"
+      >
+        {/* Step 1 Header */}
+        <div className="flex items-center justify-between pb-1">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-full bg-[#facc15] text-slate-950 font-black flex items-center justify-center text-sm shadow-sm flex-shrink-0">
+              1
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">Enter Your Details</h3>
+          </div>
+          <span className="text-[11px] sm:text-xs text-slate-400 font-medium">
+            All fields are required *
           </span>
-        ) : (
-          <span className="text-[11px] text-amber-400/90 font-medium">Required</span>
+        </div>
+
+        {/* Name Input */}
+        {campaign.require_name && (
+          <div
+            ref={(el) => {
+              if (fieldRefs?.current) fieldRefs.current[0] = el;
+            }}
+            className="flex flex-col space-y-1.5"
+          >
+            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-between">
+              <span>
+                Your Name <span className="text-red-500">*</span>
+              </span>
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400">
+                <User className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Enter your name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+                }}
+                className={`w-full bg-white text-slate-900 placeholder:text-slate-400 font-medium rounded-xl border ${
+                  errors.name ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-200'
+                } pl-10 pr-3.5 py-3 text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 hover:border-slate-300 transition-all`}
+                required
+                autoComplete="name"
+              />
+            </div>
+            {errors.name && <p className="text-xs text-red-500 font-medium">{errors.name}</p>}
+          </div>
         )}
-      </div>
 
-      {/* Name Input */}
-      {campaign.require_name && (
-        <div
-          ref={(el) => {
-            if (fieldRefs?.current) fieldRefs.current[0] = el;
-          }}
-        >
-          <Input
-            label="Your Name"
-            placeholder="Enter name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+        {/* Mobile Input */}
+        {campaign.require_mobile && (
+          <div
+            ref={(el) => {
+              if (fieldRefs?.current) fieldRefs.current[1] = el;
             }}
-            error={errors.name}
-            leftIcon={<User className="w-4 h-4 text-slate-400" />}
-            required
-            autoComplete="name"
-          />
-        </div>
-      )}
+            className="flex flex-col space-y-1.5"
+          >
+            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-between">
+              <span>
+                Mobile Number <span className="text-red-500">*</span>
+              </span>
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
+              </div>
+              <input
+                type="tel"
+                placeholder="e.g. 9876543210"
+                value={mobile}
+                onChange={(e) => {
+                  setMobile(e.target.value);
+                  if (errors.mobile) setErrors((prev) => ({ ...prev, mobile: undefined }));
+                }}
+                className={`w-full bg-white text-slate-900 placeholder:text-slate-400 font-medium rounded-xl border ${
+                  errors.mobile ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-200'
+                } pl-10 pr-3.5 py-3 text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 hover:border-slate-300 transition-all`}
+                required
+                autoComplete="tel"
+              />
+            </div>
+            {errors.mobile && <p className="text-xs text-red-500 font-medium">{errors.mobile}</p>}
+          </div>
+        )}
 
-      {/* Mobile Input */}
-      {campaign.require_mobile && (
-        <div
-          ref={(el) => {
-            if (fieldRefs?.current) fieldRefs.current[1] = el;
-          }}
-        >
-          <Input
-            label="Mobile Number"
-            type="tel"
-            placeholder="e.g. 9876543210"
-            value={mobile}
-            onChange={(e) => {
-              setMobile(e.target.value);
-              if (errors.mobile) setErrors((prev) => ({ ...prev, mobile: undefined }));
+        {/* Email Input (if enabled) */}
+        {campaign.require_email && (
+          <div
+            ref={(el) => {
+              if (fieldRefs?.current) fieldRefs.current[2] = el;
             }}
-            error={errors.mobile}
-            leftIcon={<Phone className="w-4 h-4 text-slate-400" />}
-            required
-            autoComplete="tel"
-          />
-        </div>
-      )}
+            className="flex flex-col space-y-1.5"
+          >
+            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-between">
+              <span>
+                Email Address <span className="text-red-500">*</span>
+              </span>
+            </label>
+            <div className="relative flex items-center">
+              <div className="absolute left-3.5 flex items-center pointer-events-none text-slate-400">
+                <Mail className="w-4 h-4" />
+              </div>
+              <input
+                type="email"
+                placeholder="e.g. rahul@example.com"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className={`w-full bg-white text-slate-900 placeholder:text-slate-400 font-medium rounded-xl border ${
+                  errors.email ? 'border-red-400 ring-1 ring-red-300' : 'border-slate-200'
+                } pl-10 pr-3.5 py-3 text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 hover:border-slate-300 transition-all`}
+                required
+                autoComplete="email"
+              />
+            </div>
+            {errors.email && <p className="text-xs text-red-500 font-medium">{errors.email}</p>}
+          </div>
+        )}
 
-      {/* Email Input */}
-      {campaign.require_email && (
-        <div
-          ref={(el) => {
-            if (fieldRefs?.current) fieldRefs.current[2] = el;
-          }}
-        >
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="e.g. rahul@example.com"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (errors.email) setErrors((prev) => ({ ...prev, email: undefined }));
+        {/* Date of Birth (Rendered only when collect_dob is enabled) */}
+        {campaign.collect_dob && (
+          <div
+            ref={(el) => {
+              if (fieldRefs?.current) fieldRefs.current[3] = el;
             }}
-            error={errors.email}
-            leftIcon={<Mail className="w-4 h-4 text-slate-400" />}
-            required
-            autoComplete="email"
-          />
-        </div>
-      )}
+            className="w-full flex flex-col space-y-1.5"
+          >
+            <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-between">
+              <span>
+                Date of Birth {campaign.require_dob ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal text-xs">(optional)</span>}
+              </span>
+            </label>
 
-      {/* Date of Birth (Rendered only when collect_dob is enabled) */}
-      {campaign.collect_dob && (
+            <div className="grid grid-cols-2 gap-2.5">
+              {/* Day Selector */}
+              <div className="relative flex items-center">
+                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                <select
+                  value={birthDay}
+                  onChange={(e) => {
+                    setBirthDay(e.target.value);
+                    if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
+                  }}
+                  className="w-full bg-white text-slate-800 font-medium rounded-xl border border-slate-200 pl-10 pr-8 py-3 text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 hover:border-slate-300 cursor-pointer appearance-none transition-all"
+                >
+                  <option value="">Select Day</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={String(d)}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+              </div>
+
+              {/* Month Selector */}
+              <div className="relative flex items-center">
+                <Calendar className="w-4 h-4 text-slate-400 absolute left-3.5 pointer-events-none" />
+                <select
+                  value={birthMonth}
+                  onChange={(e) => {
+                    setBirthMonth(e.target.value);
+                    if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
+                  }}
+                  className="w-full bg-white text-slate-800 font-medium rounded-xl border border-slate-200 pl-10 pr-8 py-3 text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 hover:border-slate-300 cursor-pointer appearance-none transition-all"
+                >
+                  <option value="">Select Month</option>
+                  {MONTHS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+              </div>
+            </div>
+
+            {errors.dob && <p className="text-xs text-red-500 font-medium">{errors.dob}</p>}
+          </div>
+        )}
+
+        {/* Divider Line */}
+        <div className="border-t border-slate-100 my-1" />
+
+        {/* Step 2: Follow on Instagram */}
         <div
-          ref={(el) => {
-            if (fieldRefs?.current) fieldRefs.current[3] = el;
-          }}
-          className="w-full flex flex-col space-y-1.5"
+          ref={instaRef as any}
+          className="flex flex-col space-y-2 pt-0.5"
         >
-          <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
-            <span className="flex items-center space-x-1.5">
-              <Calendar className="w-3.5 h-3.5 text-amber-400" />
-              <span>Date of Birth</span>
-            </span>
-            {campaign.require_dob ? (
-              <span className="text-[11px] font-semibold text-amber-400">Required</span>
-            ) : (
-              <span className="text-[11px] font-normal text-slate-500 lowercase">(optional)</span>
-            )}
-          </label>
-
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Day Selector */}
-            <select
-              value={birthDay}
-              onChange={(e) => {
-                setBirthDay(e.target.value);
-                if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
-              }}
-              className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
-            >
-              <option value="">Select Day</option>
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                <option key={d} value={String(d)}>
-                  {d}
-                </option>
-              ))}
-            </select>
-
-            {/* Month Selector */}
-            <select
-              value={birthMonth}
-              onChange={(e) => {
-                setBirthMonth(e.target.value);
-                if (errors.dob) setErrors((prev) => ({ ...prev, dob: undefined }));
-              }}
-              className="w-full bg-slate-900/90 text-slate-100 font-medium rounded-xl border border-slate-700/80 px-3.5 py-3 text-sm min-h-[48px] transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 hover:border-slate-600 cursor-pointer"
-            >
-              <option value="">Select Month</option>
-              {MONTHS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center space-x-2.5">
+            <div className="w-8 h-8 rounded-full bg-[#facc15] text-slate-950 font-black flex items-center justify-center text-sm shadow-sm flex-shrink-0">
+              2
+            </div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">Follow on Instagram</h3>
           </div>
 
-          {errors.dob && <p className="text-xs text-rose-400 mt-1">{errors.dob}</p>}
-        </div>
-      )}
+          {/* Instagram CTA Button */}
+          <button
+            ref={instaBtnRef}
+            type="button"
+            onClick={handleInstagramClick}
+            disabled={!isFormFilled}
+            className={`w-full py-3 px-4 rounded-xl flex items-center justify-center space-x-2.5 font-bold text-sm transition-all duration-200 min-h-[50px] ${
+              !isFormFilled
+                ? 'bg-[#f8fafc] border border-slate-200 text-slate-500 cursor-not-allowed'
+                : hasFollowedInstagram
+                ? 'bg-emerald-50 border border-emerald-300 text-emerald-700'
+                : 'bg-gradient-to-r from-pink-500 via-purple-500 to-amber-500 hover:opacity-95 text-white shadow-md hover:scale-[1.01]'
+            }`}
+          >
+            {hasFollowedInstagram ? (
+              <>
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <span>✓ Following on Instagram</span>
+              </>
+            ) : isFormFilled ? (
+              <>
+                <InstagramIcon className="w-5 h-5" />
+                <span>Follow on Instagram to Unlock</span>
+              </>
+            ) : (
+              <>
+                <InstagramIcon className="w-5 h-5 opacity-70" />
+                <span className="text-slate-600 font-semibold">Fill Details Above to Unlock</span>
+              </>
+            )}
+          </button>
 
-      {/* Step 2: Instagram Follow Action */}
-      <div
-        ref={instaRef as any}
-        className="pt-3 pb-1 border-t border-slate-800/80 flex flex-col space-y-2.5"
-      >
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
-            <InstagramIcon className="w-4 h-4 text-pink-500" />
-            <span>Step 2: Follow on Instagram</span>
-          </span>
-          {hasFollowedInstagram ? (
-            <span className="text-xs font-semibold text-emerald-400 flex items-center space-x-1">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>Unlocked</span>
-            </span>
-          ) : isFormFilled ? (
-            <span className="text-[11px] font-semibold text-pink-400 animate-pulse">
-              Ready to Follow
-            </span>
-          ) : (
-            <span className="text-[11px] font-medium text-slate-500 flex items-center space-x-1">
-              <Lock className="w-3 h-3" />
-              <span>Fill fields first</span>
-            </span>
+          {/* Instagram Helper Subtext */}
+          {!isFormFilled && (
+            <p className="text-[11px] text-center text-slate-400">
+              Please fill in your details above to enable the Instagram step.
+            </p>
+          )}
+
+          {isFormFilled && !hasFollowedInstagram && (
+            <p className="text-[11px] text-center text-pink-600 font-semibold animate-pulse">
+              Tap above to follow on Instagram and unlock your scratch card!
+            </p>
           )}
         </div>
 
-        {/* Instagram Action Button */}
-        <Button
-          ref={instaBtnRef}
-          type="button"
-          onClick={handleInstagramClick}
-          disabled={!isFormFilled}
-          variant={hasFollowedInstagram ? 'secondary' : isFormFilled ? 'instagram' : 'secondary'}
-          size="lg"
-          className={`w-full flex items-center justify-center space-x-2 font-bold transition-all duration-200 ${
-            !isFormFilled
-              ? 'opacity-40 cursor-not-allowed bg-slate-800/50 border-slate-800 text-slate-500'
-              : hasFollowedInstagram
-              ? 'border-emerald-500/40 text-emerald-300 bg-emerald-500/10'
-              : 'shadow-glow-insta hover:scale-[1.01]'
-          }`}
-          leftIcon={
-            hasFollowedInstagram ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+        {/* Step 3: Main Submit & Scratch Button */}
+        <div ref={submitRef as any} className="pt-2">
+          <button
+            ref={submitBtnRef}
+            type="submit"
+            disabled={!hasFollowedInstagram || isSubmitting}
+            className="w-full bg-[#facc15] hover:bg-[#eab308] active:scale-[0.99] text-slate-950 font-black tracking-wide text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 uppercase disabled:opacity-40 disabled:cursor-not-allowed min-h-[50px]"
+          >
+            {isSubmitting ? (
+              <span>Preparing your Scratch Card...</span>
+            ) : showReadyBadge ? (
+              <span>✓ READY TO PLAY</span>
             ) : (
-              <InstagramIcon className="w-5 h-5" />
-            )
-          }
-        >
-          <span>
-            {hasFollowedInstagram
-              ? '✓ Following on Instagram'
-              : isFormFilled
-              ? 'Follow on Instagram to Unlock'
-              : 'Fill Details Above to Unlock'}
-          </span>
-        </Button>
+              <span>SUBMIT & SCRATCH →</span>
+            )}
+          </button>
+        </div>
+      </form>
 
-        {/* Helper Hint */}
-        {!isFormFilled && (
-          <p className="text-[11px] text-center text-slate-500">
-            Please fill in your details above to enable the Instagram step.
-          </p>
-        )}
+      {/* Trust & Verification Badges (Below White Card) */}
+      <div className="w-full max-w-sm sm:max-w-md flex flex-col items-center space-y-3 pt-1">
+        {/* 3 Badges Row with vertical dividers */}
+        <div className="w-full bg-white/90 backdrop-blur-sm border border-slate-100 rounded-2xl py-3 px-4 shadow-sm flex items-center justify-around">
+          {/* Badge 1: Exciting Offers */}
+          <div className="flex items-center space-x-2">
+            <Gift className="w-5 h-5 text-red-500 flex-shrink-0" />
+            <div className="text-[11px] font-bold text-slate-800 leading-tight text-left">
+              Exciting<br />Offers
+            </div>
+          </div>
 
-        {isFormFilled && !hasFollowedInstagram && (
-          <p className="text-[11px] text-center text-pink-300 flex items-center justify-center space-x-1 animate-fadeIn">
-            <ArrowDown className="w-3 h-3 text-pink-400 animate-bounce" />
-            <span>Tap above to follow and activate your scratch card instantly</span>
-          </p>
-        )}
+          {/* Divider */}
+          <div className="h-7 w-[1px] bg-slate-200" />
+
+          {/* Badge 2: 100% Genuine */}
+          <div className="flex items-center space-x-2">
+            <ShieldCheck className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            <div className="text-[11px] font-bold text-slate-800 leading-tight text-left">
+              100%<br />Genuine
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="h-7 w-[1px] bg-slate-200" />
+
+          {/* Badge 3: Instant via WhatsApp */}
+          <div className="flex items-center space-x-2">
+            <MessageCircle className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+            <div className="text-[11px] font-bold text-slate-800 leading-tight text-left">
+              Instant via<br />WhatsApp
+            </div>
+          </div>
+        </div>
+
+        {/* Security Assurance */}
+        <div className="flex items-center justify-center space-x-1.5 text-slate-400 text-xs">
+          <Lock className="w-3.5 h-3.5 text-slate-400" />
+          <span>Your information is secure with us.</span>
+        </div>
       </div>
-
-      {/* Step 3: Main Submit & Scratch Button */}
-      <div ref={submitRef as any} className="pt-2">
-        <Button
-          ref={submitBtnRef}
-          type="submit"
-          disabled={!hasFollowedInstagram || isSubmitting}
-          isLoading={isSubmitting}
-          variant="gold"
-          size="xl"
-          className="w-full text-base sm:text-lg font-black tracking-wide shadow-glow-md"
-          leftIcon={
-            hasFollowedInstagram && !isSubmitting ? (
-              <Sparkles className="w-5 h-5 animate-spin-slow" />
-            ) : undefined
-          }
-        >
-          {isSubmitting
-            ? 'Preparing your Scratch Card...'
-            : showReadyBadge
-            ? '✓ READY TO PLAY'
-            : 'SUBMIT & SCRATCH'}
-        </Button>
-      </div>
-    </form>
+    </div>
   );
 };

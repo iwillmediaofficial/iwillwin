@@ -47,8 +47,8 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     ctx.fillRect(0, 0, width, height);
 
     // 2. Texture & Sparkles Pattern
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    for (let i = 0; i < 40; i++) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+    for (let i = 0; i < 45; i++) {
       const x = Math.random() * width;
       const y = Math.random() * height;
       const r = Math.random() * 2 + 1;
@@ -58,7 +58,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     }
 
     // 3. Border Trim
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     ctx.lineWidth = 4;
     ctx.strokeRect(10, 10, width - 20, height - 20);
 
@@ -74,8 +74,8 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     ctx.fillText('🪙 SCRATCH HERE 🪙', width / 2, height / 2 + 10);
 
     ctx.fillStyle = '#854D0E';
-    ctx.font = '600 11px Inter, sans-serif';
-    ctx.fillText('Swipe coin across card to reveal', width / 2, height / 2 + 35);
+    ctx.font = '600 12px Inter, sans-serif';
+    ctx.fillText('Swipe across card to reveal', width / 2, height / 2 + 35);
   }, []);
 
   // Check scratch completion percentage (~38% threshold)
@@ -98,24 +98,26 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
       for (let x = 0; x < width; x += step) {
         const index = (y * width + x) * 4;
         const alpha = data[index + 3];
-        totalSampled++;
         if (alpha < 128) {
           transparentPixels++;
         }
+        totalSampled++;
       }
     }
 
-    const percent = Math.round((transparentPixels / totalSampled) * 100);
+    const percentage = (transparentPixels / totalSampled) * 100;
 
-    if (percent >= 38 && !hasRevealedRef.current) {
+    if (percentage > 38 && !hasRevealedRef.current) {
       hasRevealedRef.current = true;
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillRect(0, 0, width, height);
-      onReveal();
+      // Auto clear remaining scratch foil
+      canvas.style.opacity = '0';
+      setTimeout(() => {
+        onReveal();
+      }, 400);
     }
   }, [onReveal]);
 
-  // Scratch action
+  // Handle Scratching Action
   const scratchAt = useCallback(
     (clientX: number, clientY: number) => {
       if (hasRevealedRef.current) return;
@@ -181,9 +183,8 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (isScratching) {
-        scratchAt(e.clientX, e.clientY);
-      }
+      if (!isScratching) return;
+      scratchAt(e.clientX, e.clientY);
     };
 
     const handleMouseUp = () => {
@@ -192,7 +193,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
 
     canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
     canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
     canvas.addEventListener('mousedown', handleMouseDown);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
@@ -208,17 +209,17 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
   }, [initCanvas, isScratching, scratchAt]);
 
   return (
-    <div className="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center select-none">
+    <div className="w-full max-w-sm sm:max-w-md mx-auto flex flex-col items-center select-none relative z-10">
       {/* Scratch Title Banner */}
       <div className="text-center mb-4">
-        <span className="inline-flex items-center space-x-1.5 text-xs font-bold text-amber-300 uppercase tracking-widest bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/30">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+        <span className="inline-flex items-center space-x-1.5 text-xs font-black text-[#92400e] uppercase tracking-wider bg-[#fef3c7] px-4 py-1 rounded-full border border-[#fde68a] shadow-sm">
+          <Sparkles className="w-3.5 h-3.5 text-amber-500" />
           <span>{scratchTitle}</span>
         </span>
-        <h2 className="text-xl sm:text-2xl font-black text-white font-display mt-2">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-2">
           Your Lucky Card is Ready!
         </h2>
-        <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
           Use your finger or mouse to scratch the gold foil.
         </p>
       </div>
@@ -226,32 +227,32 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
       {/* Card Container */}
       <div
         ref={containerRef}
-        className="relative w-full aspect-[4/3] max-w-[340px] sm:max-w-[380px] rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-400/40 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900"
+        className="relative w-full aspect-[4/3] max-w-[340px] sm:max-w-[380px] rounded-3xl overflow-hidden shadow-2xl border-2 border-amber-300 ring-4 ring-amber-100 bg-white"
       >
         {/* UNDERNEATH LAYER: The Revealed Prize */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-radial-gradient">
-          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center mb-3 shadow-glow-sm overflow-hidden">
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-amber-50/70 via-white to-amber-50/50">
+          <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-white border-2 border-amber-200 shadow-md flex items-center justify-center mb-3 overflow-hidden">
             {prize?.image_url ? (
               <img
                 src={prize.image_url}
                 alt={prize.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain p-1"
               />
             ) : (
-              <Gift className="w-10 h-10 text-amber-400 animate-bounce" />
+              <Gift className="w-10 h-10 text-amber-500 animate-bounce" />
             )}
           </div>
 
-          <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
+          <span className="text-[11px] font-black text-amber-600 uppercase tracking-wider">
             🎉 PRIZE UNLOCKED!
           </span>
 
-          <h3 className="text-lg sm:text-xl font-extrabold text-white font-display mt-1 leading-snug">
+          <h3 className="text-lg sm:text-xl font-black text-slate-900 mt-1 leading-snug">
             {prize ? prize.name : 'Exclusive Promotional Reward'}
           </h3>
 
           {prize?.description && (
-            <p className="text-xs text-slate-300 mt-1 max-w-[260px] line-clamp-2">
+            <p className="text-xs text-slate-500 mt-1 max-w-[260px] line-clamp-2">
               {prize.description}
             </p>
           )}
@@ -263,7 +264,7 @@ export const ScratchCard: React.FC<ScratchCardProps> = ({
             ref={canvasRef}
             width={380}
             height={285}
-            className="absolute inset-0 w-full h-full scratch-canvas z-10 transition-opacity duration-300"
+            className="absolute inset-0 w-full h-full scratch-canvas z-10 transition-opacity duration-300 cursor-pointer"
           />
         )}
       </div>

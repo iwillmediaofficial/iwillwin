@@ -9,7 +9,6 @@ import {
   UserCheck,
   Settings,
   LogOut,
-  Sparkles,
   ExternalLink,
   Shield,
 } from 'lucide-react';
@@ -36,18 +35,15 @@ export const AdminSidebar: React.FC<{ onClose?: () => void }> = ({ onClose }) =>
       {/* Brand Header */}
       <div className="flex flex-col space-y-6">
         <div className="flex items-center justify-between px-2 pt-2">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black shadow-glow-sm">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-extrabold text-base text-white tracking-wider font-display leading-none">
-                IWILLWIN
-              </h2>
-              <span className="text-[10px] text-amber-400 font-semibold tracking-widest uppercase">
-                {isSuperAdmin ? 'SUPER ADMIN' : 'CLIENT PORTAL'}
-              </span>
-            </div>
+          <div className="flex flex-col space-y-1">
+            <img
+              src="/logo.png"
+              alt="IWILLWIN"
+              className="h-8 w-auto object-contain self-start"
+            />
+            <span className="text-[9px] text-amber-400 font-bold tracking-widest uppercase pl-0.5">
+              {isSuperAdmin ? 'SUPER ADMIN' : 'CLIENT PORTAL'}
+            </span>
           </div>
         </div>
 
