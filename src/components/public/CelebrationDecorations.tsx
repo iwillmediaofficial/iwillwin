@@ -3,115 +3,115 @@ import React from 'react';
 export const CelebrationDecorations: React.FC = () => {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 select-none">
-      {/* Soft Pastel Corner Ambient Blobs */}
-      <div className="absolute -top-12 -left-12 w-64 h-64 rounded-full bg-amber-200/30 blur-3xl" />
-      <div className="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-sky-200/30 blur-3xl" />
-      <div className="absolute -bottom-16 -left-16 w-72 h-72 rounded-full bg-sky-100/40 blur-3xl" />
-      <div className="absolute -bottom-16 -right-16 w-72 h-72 rounded-full bg-amber-100/50 blur-3xl" />
+      {/* Corner Ambient Pastel Blobs (matching screenshot corners) */}
+      <div className="absolute -top-10 -left-10 w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-amber-200/40 blur-3xl" />
+      <div className="absolute -top-10 -right-10 w-48 h-48 sm:w-64 sm:h-64 rounded-full bg-sky-200/40 blur-3xl" />
+      <div className="absolute -bottom-12 -left-12 w-56 h-56 rounded-full bg-sky-100/50 blur-3xl" />
+      <div className="absolute -bottom-12 -right-12 w-56 h-56 rounded-full bg-amber-100/60 blur-3xl" />
 
-      {/* Floating Gift Box - TOP LEFT */}
-      <div className="hidden sm:block absolute top-12 left-4 md:left-12 lg:left-24 w-28 h-32 md:w-36 md:h-40 transform -rotate-12 animate-float">
+      {/* Floating 3D Gift Box - LEFT (Visible on mobile & desktop, clipped to left edge) */}
+      <div className="absolute top-28 sm:top-32 -left-5 sm:left-2 md:left-8 lg:left-20 w-24 h-28 sm:w-32 sm:h-36 transform -rotate-12 z-0">
         <svg viewBox="0 0 160 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-xl">
+          {/* Box Shadow */}
+          <ellipse cx="80" cy="165" rx="55" ry="12" fill="#CBD5E1" fillOpacity="0.4" />
           {/* Gift Box Lid */}
-          <rect x="25" y="42" width="110" height="28" rx="6" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+          <rect x="22" y="40" width="116" height="30" rx="7" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2.5" />
           {/* Gift Box Body */}
-          <rect x="32" y="68" width="96" height="85" rx="6" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
+          <rect x="30" y="68" width="100" height="90" rx="7" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2.5" />
           {/* Gold Ribbons Body */}
-          <rect x="70" y="68" width="20" height="85" fill="url(#goldGrad)" />
+          <rect x="68" y="68" width="24" height="90" fill="url(#leftGoldGrad)" />
           {/* Gold Ribbons Lid */}
-          <rect x="70" y="42" width="20" height="28" fill="url(#goldGrad)" />
-          {/* Gold Bow Left */}
+          <rect x="68" y="40" width="24" height="30" fill="url(#leftGoldGrad)" />
+          {/* Gold Bow Left Wing */}
           <path
-            d="M80 44 C65 20, 30 16, 42 36 C50 48, 75 44, 80 44 Z"
-            fill="url(#goldGradLight)"
+            d="M80 42 C62 14, 25 10, 38 34 C48 48, 74 44, 80 42 Z"
+            fill="url(#leftGoldGradLight)"
             stroke="#D97706"
-            strokeWidth="1.5"
+            strokeWidth="2"
           />
-          {/* Gold Bow Right */}
+          {/* Gold Bow Right Wing */}
           <path
-            d="M80 44 C95 20, 130 16, 118 36 C110 48, 85 44, 80 44 Z"
-            fill="url(#goldGradLight)"
+            d="M80 42 C98 14, 135 10, 122 34 C112 48, 86 44, 80 42 Z"
+            fill="url(#leftGoldGradLight)"
             stroke="#D97706"
-            strokeWidth="1.5"
+            strokeWidth="2"
           />
           {/* Bow Knot */}
-          <circle cx="80" cy="43" r="8" fill="url(#goldGrad)" stroke="#B45309" strokeWidth="1.5" />
+          <circle cx="80" cy="42" r="9" fill="url(#leftGoldGrad)" stroke="#B45309" strokeWidth="2" />
 
           {/* Gradients */}
           <defs>
-            <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FBBF24" />
-              <stop offset="50%" stopColor="#F59E0B" />
+            <linearGradient id="leftGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FDE047" />
+              <stop offset="35%" stopColor="#FBBF24" />
+              <stop offset="70%" stopColor="#F59E0B" />
               <stop offset="100%" stopColor="#D97706" />
             </linearGradient>
-            <linearGradient id="goldGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FDE047" />
-              <stop offset="50%" stopColor="#FBBF24" />
+            <linearGradient id="leftGoldGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FEF08A" />
+              <stop offset="50%" stopColor="#FDE047" />
               <stop offset="100%" stopColor="#F59E0B" />
             </linearGradient>
           </defs>
         </svg>
 
-        {/* Confetti near left box */}
-        <span className="absolute -top-3 -right-2 w-3 h-6 bg-blue-500 rounded-sm transform rotate-45 opacity-85" />
-        <span className="absolute top-16 -left-3 w-4 h-2 bg-amber-400 rounded-sm transform -rotate-12 opacity-85" />
-        <span className="absolute -bottom-2 right-4 w-3 h-5 bg-blue-400 rounded-sm transform rotate-12 opacity-75" />
+        {/* Confetti streamers near left gift box */}
+        <span className="absolute -top-3 right-1 w-2.5 h-6 bg-blue-500 rounded-full transform rotate-45 opacity-90 shadow-sm" />
+        <span className="absolute top-12 -left-2 w-3.5 h-2 bg-amber-400 rounded-full transform -rotate-12 opacity-90 shadow-sm" />
+        <span className="absolute -bottom-2 right-6 w-2.5 h-4 bg-blue-400 rounded-full transform rotate-12 opacity-80" />
       </div>
 
-      {/* Floating Gift Box - TOP RIGHT */}
-      <div className="hidden sm:block absolute top-12 right-4 md:right-12 lg:right-24 w-28 h-32 md:w-36 md:h-40 transform rotate-12 animate-float-delayed">
+      {/* Floating 3D Gift Box - RIGHT (Visible on mobile & desktop, clipped to right edge) */}
+      <div className="absolute top-28 sm:top-32 -right-5 sm:right-2 md:right-8 lg:right-20 w-24 h-28 sm:w-32 sm:h-36 transform rotate-12 z-0">
         <svg viewBox="0 0 160 180" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-xl">
+          {/* Box Shadow */}
+          <ellipse cx="80" cy="165" rx="55" ry="12" fill="#CBD5E1" fillOpacity="0.4" />
           {/* Gift Box Lid */}
-          <rect x="25" y="42" width="110" height="28" rx="6" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2" />
+          <rect x="22" y="40" width="116" height="30" rx="7" fill="#FFFFFF" stroke="#E2E8F0" strokeWidth="2.5" />
           {/* Gift Box Body */}
-          <rect x="32" y="68" width="96" height="85" rx="6" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2" />
+          <rect x="30" y="68" width="100" height="90" rx="7" fill="#F8FAFC" stroke="#E2E8F0" strokeWidth="2.5" />
           {/* Gold Ribbons Body */}
-          <rect x="70" y="68" width="20" height="85" fill="url(#goldGrad2)" />
+          <rect x="68" y="68" width="24" height="90" fill="url(#rightGoldGrad)" />
           {/* Gold Ribbons Lid */}
-          <rect x="70" y="42" width="20" height="28" fill="url(#goldGrad2)" />
-          {/* Gold Bow Left */}
+          <rect x="68" y="40" width="24" height="30" fill="url(#rightGoldGrad)" />
+          {/* Gold Bow Left Wing */}
           <path
-            d="M80 44 C65 20, 30 16, 42 36 C50 48, 75 44, 80 44 Z"
-            fill="url(#goldGradLight2)"
+            d="M80 42 C62 14, 25 10, 38 34 C48 48, 74 44, 80 42 Z"
+            fill="url(#rightGoldGradLight)"
             stroke="#D97706"
-            strokeWidth="1.5"
+            strokeWidth="2"
           />
-          {/* Gold Bow Right */}
+          {/* Gold Bow Right Wing */}
           <path
-            d="M80 44 C95 20, 130 16, 118 36 C110 48, 85 44, 80 44 Z"
-            fill="url(#goldGradLight2)"
+            d="M80 42 C98 14, 135 10, 122 34 C112 48, 86 44, 80 42 Z"
+            fill="url(#rightGoldGradLight)"
             stroke="#D97706"
-            strokeWidth="1.5"
+            strokeWidth="2"
           />
           {/* Bow Knot */}
-          <circle cx="80" cy="43" r="8" fill="url(#goldGrad2)" stroke="#B45309" strokeWidth="1.5" />
+          <circle cx="80" cy="42" r="9" fill="url(#rightGoldGrad)" stroke="#B45309" strokeWidth="2" />
 
           {/* Gradients */}
           <defs>
-            <linearGradient id="goldGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FBBF24" />
-              <stop offset="50%" stopColor="#F59E0B" />
+            <linearGradient id="rightGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FDE047" />
+              <stop offset="35%" stopColor="#FBBF24" />
+              <stop offset="70%" stopColor="#F59E0B" />
               <stop offset="100%" stopColor="#D97706" />
             </linearGradient>
-            <linearGradient id="goldGradLight2" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FDE047" />
-              <stop offset="50%" stopColor="#FBBF24" />
+            <linearGradient id="rightGoldGradLight" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FEF08A" />
+              <stop offset="50%" stopColor="#FDE047" />
               <stop offset="100%" stopColor="#F59E0B" />
             </linearGradient>
           </defs>
         </svg>
 
-        {/* Confetti near right box */}
-        <span className="absolute -top-2 -left-3 w-3 h-6 bg-blue-500 rounded-sm transform -rotate-45 opacity-85" />
-        <span className="absolute top-20 -right-2 w-4 h-2 bg-amber-400 rounded-sm transform rotate-45 opacity-85" />
-        <span className="absolute -bottom-3 left-4 w-3 h-5 bg-amber-500 rounded-sm transform -rotate-12 opacity-75" />
+        {/* Confetti streamers near right gift box */}
+        <span className="absolute -top-3 left-1 w-2.5 h-6 bg-blue-500 rounded-full transform -rotate-45 opacity-90 shadow-sm" />
+        <span className="absolute top-14 -right-2 w-3.5 h-2 bg-amber-400 rounded-full transform rotate-12 opacity-90 shadow-sm" />
+        <span className="absolute -bottom-2 left-6 w-2.5 h-4 bg-amber-500 rounded-full transform -rotate-12 opacity-80" />
       </div>
-
-      {/* Floating Confetti Scatter across screen */}
-      <div className="absolute top-28 left-1/4 w-2.5 h-6 bg-blue-400 rounded-full transform rotate-45 opacity-60" />
-      <div className="absolute top-44 left-1/6 w-3 h-3 rounded-full bg-amber-400 opacity-60" />
-      <div className="absolute top-36 right-1/4 w-3 h-5 bg-blue-500 rounded-full transform -rotate-30 opacity-60" />
-      <div className="absolute top-52 right-1/6 w-2.5 h-5 bg-amber-400 rounded-sm transform rotate-12 opacity-60" />
     </div>
   );
 };

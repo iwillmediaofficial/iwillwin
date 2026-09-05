@@ -208,14 +208,14 @@ export const CampaignPage: React.FC = () => {
       <CelebrationDecorations />
 
       {/* Top Official IWILLWIN Brand Logo & Tagline */}
-      <header className="w-full max-w-md px-4 pt-4 pb-1 flex flex-col items-center justify-center z-20 select-none">
+      <header className="w-full max-w-md px-4 pt-6 pb-2 flex flex-col items-center justify-center z-20 select-none">
         <img
           src="/logo.png"
           alt="IWILLWIN"
-          className="h-12 sm:h-14 w-auto object-contain drop-shadow-sm"
+          className="h-12 sm:h-15 w-auto object-contain drop-shadow-sm"
           loading="eager"
         />
-        <span className="text-[10px] sm:text-[11px] font-black tracking-[0.28em] text-[#1e293b] uppercase mt-1">
+        <span className="text-[10px] sm:text-[11px] font-black tracking-[0.26em] text-[#1e293b] uppercase mt-1">
           PLAY MORE • WIN MORE
         </span>
       </header>
