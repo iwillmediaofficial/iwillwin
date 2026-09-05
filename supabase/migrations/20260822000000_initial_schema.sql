@@ -82,6 +82,18 @@ CREATE TABLE IF NOT EXISTS public.prize_allocations (
     allocated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 4B. CAMPAIGN PRIZE QUEUE (EXACT ENGINE ORDER)
+CREATE TABLE IF NOT EXISTS public.campaign_prize_queue (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id UUID NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+    prize_id UUID NOT NULL REFERENCES public.prizes(id) ON DELETE CASCADE,
+    slot_number BIGINT NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'queued' CHECK (status IN ('queued', 'allocated', 'cancelled')),
+    lead_id UUID REFERENCES public.leads(id) ON DELETE SET NULL,
+    allocated_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 5. ADMIN PROFILES TABLE
 CREATE TABLE IF NOT EXISTS public.admin_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -603,56 +615,55 @@ BEGIN
         END IF;
     END IF;
 
-    CREATE TEMP TABLE tmp_eligible_prizes (
-        id UUID,
-        name TEXT,
-        description TEXT,
-        image_url TEXT,
-        weight INTEGER
-    ) ON COMMIT DROP;
+    -- 1. Ensure the prize queue has at least 20 slots
+    PERFORM public.ensure_prize_queue(v_campaign.id, 20);
 
-    FOR v_candidate IN 
-        SELECT p.* 
-        FROM public.prizes p
-        WHERE p.campaign_id = v_campaign.id
+    -- 2. Pull the next queued prize that satisfies limits
+    FOR v_candidate IN
+        SELECT q.id as queue_id, q.slot_number, p.id as prize_id, p.name, p.description, p.image_url,
+               p.maximum_limit, p.daily_limit, p.hourly_limit, p.supplied_quantity, p.remaining_quantity
+        FROM public.campaign_prize_queue q
+        JOIN public.prizes p ON q.prize_id = p.id
+        WHERE q.campaign_id = v_campaign.id
+          AND q.status = 'queued'
           AND p.is_active = true
           AND p.remaining_quantity > 0
-          AND p.weight > 0
-        FOR UPDATE
+        ORDER BY q.slot_number ASC
+        FOR UPDATE OF q, p
     LOOP
+        -- Check maximum limit
         IF v_candidate.maximum_limit > 0 AND v_candidate.supplied_quantity >= v_candidate.maximum_limit THEN
+            UPDATE public.campaign_prize_queue SET status = 'cancelled' WHERE id = v_candidate.queue_id;
             CONTINUE;
         END IF;
 
+        -- Check daily limit
         IF v_candidate.daily_limit > 0 THEN
-            SELECT COUNT(*) INTO v_daily_count FROM public.prize_allocations WHERE prize_id = v_candidate.id AND allocated_at >= date_trunc('day', NOW());
-            IF v_daily_count >= v_candidate.daily_limit THEN CONTINUE; END IF;
+            SELECT COUNT(*) INTO v_daily_count 
+            FROM public.prize_allocations 
+            WHERE prize_id = v_candidate.prize_id AND allocated_at >= date_trunc('day', NOW());
+            IF v_daily_count >= v_candidate.daily_limit THEN 
+                CONTINUE; 
+            END IF;
         END IF;
 
+        -- Check hourly limit
         IF v_candidate.hourly_limit > 0 THEN
-            SELECT COUNT(*) INTO v_hourly_count FROM public.prize_allocations WHERE prize_id = v_candidate.id AND allocated_at >= (NOW() - INTERVAL '1 hour');
-            IF v_hourly_count >= v_candidate.hourly_limit THEN CONTINUE; END IF;
+            SELECT COUNT(*) INTO v_hourly_count 
+            FROM public.prize_allocations 
+            WHERE prize_id = v_candidate.prize_id AND allocated_at >= (NOW() - INTERVAL '1 hour');
+            IF v_hourly_count >= v_candidate.hourly_limit THEN 
+                CONTINUE; 
+            END IF;
         END IF;
 
-        INSERT INTO tmp_eligible_prizes (id, name, description, image_url, weight)
-        VALUES (v_candidate.id, v_candidate.name, v_candidate.description, v_candidate.image_url, v_candidate.weight);
-
-        v_total_weight := v_total_weight + v_candidate.weight;
+        -- Found next prize!
+        v_selected_prize_id := v_candidate.prize_id;
+        v_selected_prize := v_candidate;
+        EXIT;
     END LOOP;
 
-    IF v_total_weight > 0 THEN
-        v_random_weight := floor(random() * v_total_weight + 1)::INTEGER;
-
-        FOR v_candidate IN SELECT * FROM tmp_eligible_prizes ORDER BY weight DESC LOOP
-            v_current_cumulative := v_current_cumulative + v_candidate.weight;
-            IF v_random_weight <= v_current_cumulative THEN
-                v_selected_prize_id := v_candidate.id;
-                SELECT * INTO v_selected_prize FROM public.prizes WHERE id = v_selected_prize_id;
-                EXIT;
-            END IF;
-        END LOOP;
-    END IF;
-
+    -- Update inventory
     IF v_selected_prize_id IS NOT NULL THEN
         UPDATE public.prizes
         SET supplied_quantity = supplied_quantity + 1,
@@ -661,14 +672,26 @@ BEGIN
         WHERE id = v_selected_prize_id;
     END IF;
 
+    -- Generate unique winning verification code
     v_claim_code := 'WIN-' || UPPER(SUBSTRING(MD5(gen_random_uuid()::TEXT || clock_timestamp()::TEXT), 1, 8));
 
+    -- Insert participant lead
     INSERT INTO public.leads (
         campaign_id, name, mobile, email, dob, claim_code, prize_id, scratch_status, ip_address, user_agent, participated_at
     ) VALUES (
         v_campaign.id, v_clean_name, v_clean_mobile, v_clean_email, v_clean_dob, v_claim_code, v_selected_prize_id, 'Pending', p_ip, p_user_agent, NOW()
     ) RETURNING id INTO v_lead_id;
 
+    -- Mark queue slot as allocated to this lead
+    IF v_candidate.queue_id IS NOT NULL THEN
+        UPDATE public.campaign_prize_queue
+        SET status = 'allocated',
+            lead_id = v_lead_id,
+            allocated_at = NOW()
+        WHERE id = v_candidate.queue_id;
+    END IF;
+
+    -- Record allocation
     IF v_selected_prize_id IS NOT NULL THEN
         INSERT INTO public.prize_allocations (campaign_id, lead_id, prize_id, allocated_at)
         VALUES (v_campaign.id, v_lead_id, v_selected_prize_id, NOW());
@@ -686,7 +709,7 @@ BEGIN
         'cta_text', COALESCE(v_campaign.cta_text, 'Claim on WhatsApp'),
         'cta_url', COALESCE(v_campaign.cta_url, ''),
         'prize', CASE WHEN v_selected_prize_id IS NOT NULL THEN
-            jsonb_build_object('id', v_selected_prize.id, 'name', v_selected_prize.name, 'description', v_selected_prize.description, 'image_url', v_selected_prize.image_url)
+            jsonb_build_object('id', v_selected_prize.prize_id, 'name', v_selected_prize.name, 'description', v_selected_prize.description, 'image_url', v_selected_prize.image_url)
         ELSE NULL END
     );
 END;
@@ -803,4 +826,169 @@ GRANT EXECUTE ON FUNCTION public.admin_update_client(UUID, TEXT, UUID[]) TO auth
 GRANT EXECUTE ON FUNCTION public.admin_delete_client(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_get_clients() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_lead_claim_status(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ensure_prize_queue(UUID, INTEGER) TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.get_upcoming_prizes(UUID, INTEGER) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.reshuffle_prize_queue(UUID) TO authenticated;
+
+-- ENSURE PRIZE QUEUE
+CREATE OR REPLACE FUNCTION public.ensure_prize_queue(p_campaign_id UUID, p_target_count INTEGER DEFAULT 30)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_current_count INTEGER;
+    v_needed INTEGER;
+    v_max_slot BIGINT;
+    v_total_weight INTEGER;
+    v_random_val INTEGER;
+    v_cum INTEGER;
+    v_cand RECORD;
+    v_selected_id UUID;
+    v_added_count INTEGER := 0;
+BEGIN
+    SELECT COUNT(*) INTO v_current_count
+    FROM public.campaign_prize_queue
+    WHERE campaign_id = p_campaign_id AND status = 'queued';
+
+    IF v_current_count >= p_target_count THEN
+        RETURN 0;
+    END IF;
+
+    v_needed := p_target_count - v_current_count;
+
+    SELECT COALESCE(MAX(slot_number), 0) INTO v_max_slot
+    FROM public.campaign_prize_queue
+    WHERE campaign_id = p_campaign_id;
+
+    -- Pre-calculate sum of active weights
+    SELECT COALESCE(SUM(weight), 0) INTO v_total_weight
+    FROM public.prizes
+    WHERE campaign_id = p_campaign_id
+      AND is_active = true
+      AND remaining_quantity > 0
+      AND weight > 0;
+
+    IF v_total_weight <= 0 THEN
+        RETURN 0;
+    END IF;
+
+    WHILE v_added_count < v_needed LOOP
+        v_random_val := floor(random() * v_total_weight + 1)::INTEGER;
+        v_cum := 0;
+        v_selected_id := NULL;
+
+        FOR v_cand IN 
+            SELECT id, weight 
+            FROM public.prizes
+            WHERE campaign_id = p_campaign_id
+              AND is_active = true
+              AND remaining_quantity > 0
+              AND weight > 0
+            ORDER BY weight DESC, id ASC
+        LOOP
+            v_cum := v_cum + v_cand.weight;
+            IF v_random_val <= v_cum THEN
+                v_selected_id := v_cand.id;
+                EXIT;
+            END IF;
+        END LOOP;
+
+        IF v_selected_id IS NOT NULL THEN
+            v_max_slot := v_max_slot + 1;
+            INSERT INTO public.campaign_prize_queue (campaign_id, prize_id, slot_number, status)
+            VALUES (p_campaign_id, v_selected_id, v_max_slot, 'queued');
+            v_added_count := v_added_count + 1;
+        ELSE
+            EXIT;
+        END IF;
+    END LOOP;
+
+    RETURN v_added_count;
+END;
+$$;
+
+-- GET UPCOMING PRIZES
+CREATE OR REPLACE FUNCTION public.get_upcoming_prizes(p_campaign_id UUID, p_limit INTEGER DEFAULT 10)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_res JSONB;
+BEGIN
+    PERFORM public.ensure_prize_queue(p_campaign_id, 30);
+
+    WITH numbered_items AS (
+        SELECT 
+            q.id as queue_id,
+            q.slot_number,
+            row_number() OVER (ORDER BY q.slot_number ASC) as display_index,
+            p.id as prize_id,
+            p.name,
+            p.description,
+            p.image_url,
+            p.weight,
+            p.display_order,
+            p.allocated_quantity,
+            p.supplied_quantity,
+            p.remaining_quantity,
+            p.daily_limit,
+            p.hourly_limit
+        FROM (
+            SELECT id, slot_number, prize_id
+            FROM public.campaign_prize_queue
+            WHERE campaign_id = p_campaign_id AND status = 'queued'
+            ORDER BY slot_number ASC
+            LIMIT p_limit
+        ) q
+        JOIN public.prizes p ON q.prize_id = p.id
+    )
+    SELECT jsonb_agg(
+        jsonb_build_object(
+            'queue_id', queue_id,
+            'slot_number', slot_number,
+            'display_index', display_index,
+            'prize_id', prize_id,
+            'name', name,
+            'description', description,
+            'image_url', image_url,
+            'weight', weight,
+            'display_order', display_order,
+            'allocated_quantity', allocated_quantity,
+            'supplied_quantity', supplied_quantity,
+            'remaining_quantity', remaining_quantity,
+            'daily_limit', daily_limit,
+            'hourly_limit', hourly_limit
+        ) ORDER BY slot_number ASC
+    )
+    INTO v_res
+    FROM numbered_items;
+
+    RETURN COALESCE(v_res, '[]'::jsonb);
+END;
+$$;
+
+-- RESHUFFLE PRIZE QUEUE
+CREATE OR REPLACE FUNCTION public.reshuffle_prize_queue(p_campaign_id UUID)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+    IF NOT public.has_campaign_access(p_campaign_id) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied to campaign.');
+    END IF;
+
+    DELETE FROM public.campaign_prize_queue
+    WHERE campaign_id = p_campaign_id AND status = 'queued';
+
+    PERFORM public.ensure_prize_queue(p_campaign_id, 30);
+
+    RETURN jsonb_build_object('success', true, 'message', 'Upcoming prize queue successfully reshuffled.');
+END;
+$$;
 

@@ -205,6 +205,56 @@ export async function updateLeadClaimStatus(
   }
 }
 
+export interface UpcomingPrizeItem {
+  queue_id: string;
+  slot_number: number;
+  display_index: number;
+  prize_id: string;
+  name: string;
+  description: string | null;
+  image_url: string | null;
+  weight: number;
+  display_order: number;
+  allocated_quantity: number;
+  supplied_quantity: number;
+  remaining_quantity: number;
+  daily_limit: number;
+  hourly_limit: number;
+}
+
+export async function getUpcomingPrizes(
+  campaignId: string,
+  limit: number = 10
+): Promise<UpcomingPrizeItem[]> {
+  if (!campaignId) return [];
+  try {
+    const { data, error } = await supabase.rpc('get_upcoming_prizes', {
+      p_campaign_id: campaignId,
+      p_limit: limit,
+    });
+    if (error) throw error;
+    return (data as UpcomingPrizeItem[]) || [];
+  } catch (err: any) {
+    console.error('Error fetching upcoming prizes:', err);
+    return [];
+  }
+}
+
+export async function reshufflePrizeQueue(
+  campaignId: string
+): Promise<{ success: boolean; message?: string }> {
+  if (!campaignId) return { success: false, message: 'No campaign specified' };
+  try {
+    const { data, error } = await supabase.rpc('reshuffle_prize_queue', {
+      p_campaign_id: campaignId,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to reshuffle prize queue' };
+  }
+}
+
 /**
  * Admin Dashboard Stats Fetcher
  */

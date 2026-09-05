@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { supabase, reshufflePrizeQueue } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PrizeModal } from '@/components/admin/PrizeModal';
 import { PrizeDesktopTable } from '@/components/admin/PrizeDesktopTable';
@@ -75,6 +75,7 @@ export const PrizesPage: React.FC = () => {
   }, [loading, prizes]);
 
   const handleSavePrize = async (prizeData: Partial<Prize>) => {
+    const targetCamp = prizeData.campaign_id || selectedCampaignId;
     if (editingPrize) {
       const { error } = await supabase
         .from('prizes')
@@ -86,6 +87,9 @@ export const PrizesPage: React.FC = () => {
       const { error } = await supabase.from('prizes').insert(prizeData);
       if (error) throw error;
     }
+    if (targetCamp) {
+      await reshufflePrizeQueue(targetCamp);
+    }
     await fetchData();
   };
 
@@ -95,6 +99,9 @@ export const PrizesPage: React.FC = () => {
       if (error) {
         alert(`Error deleting prize: ${error.message}`);
       } else {
+        if (selectedCampaignId) {
+          await reshufflePrizeQueue(selectedCampaignId);
+        }
         await fetchData();
       }
     }
@@ -115,6 +122,8 @@ export const PrizesPage: React.FC = () => {
     if (error) {
       alert(`Error updating prize status: ${error.message}`);
       await fetchData();
+    } else {
+      await reshufflePrizeQueue(prize.campaign_id);
     }
   };
 
@@ -246,7 +255,11 @@ export const PrizesPage: React.FC = () => {
             </div>
 
             {/* Collapsible Upcoming 10 Prizes Queue in Order */}
-            <UpcomingPrizesQueue prizes={prizes} />
+            <UpcomingPrizesQueue
+              campaignId={selectedCampaignId}
+              prizes={prizes}
+              onPrizesUpdated={fetchData}
+            />
           </div>
         )}
       </div>
