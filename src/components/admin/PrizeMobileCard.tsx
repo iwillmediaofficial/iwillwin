@@ -2,17 +2,18 @@ import { forwardRef } from 'react';
 import type { Prize } from '@/types/database';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
-import { Gift, Edit2, Trash2 } from 'lucide-react';
+import { Gift, Edit2, Trash2, Target } from 'lucide-react';
 
 interface PrizeMobileCardProps {
   prize: Prize;
   onEdit: (prize: Prize) => void;
   onDelete: (id: string, name: string) => void;
   onToggleStatus: (prize: Prize) => void;
+  onSetNext?: (prize: Prize) => void;
 }
 
 export const PrizeMobileCard = forwardRef<HTMLDivElement, PrizeMobileCardProps>(
-  ({ prize, onEdit, onDelete, onToggleStatus }, ref) => {
+  ({ prize, onEdit, onDelete, onToggleStatus, onSetNext }, ref) => {
     const isOutOfStock = prize.remaining_quantity <= 0;
 
     return (
@@ -95,6 +96,19 @@ export const PrizeMobileCard = forwardRef<HTMLDivElement, PrizeMobileCardProps>(
 
         {/* Card Actions */}
         <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2">
+          {onSetNext && prize.is_active && prize.remaining_quantity > 0 && (
+            <Button
+              onClick={() => onSetNext(prize)}
+              variant="outline"
+              size="sm"
+              className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10 text-xs font-semibold px-2.5"
+              title="Set as Guaranteed Next Prize"
+              leftIcon={<Target className="w-3.5 h-3.5 text-amber-400" />}
+            >
+              Set Next
+            </Button>
+          )}
+
           <Button
             onClick={() => onEdit(prize)}
             variant="secondary"

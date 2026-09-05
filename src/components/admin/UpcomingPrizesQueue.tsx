@@ -11,7 +11,9 @@ import {
   RefreshCw,
   Sparkles,
   Flame,
+  Target,
 } from 'lucide-react';
+import { ChooseNextPrizeModal } from '@/components/admin/ChooseNextPrizeModal';
 
 interface UpcomingPrizesQueueProps {
   campaignId: string;
@@ -28,6 +30,8 @@ export const UpcomingPrizesQueue: React.FC<UpcomingPrizesQueueProps> = ({
   const [queue, setQueue] = useState<UpcomingPrizeItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isReshuffling, setIsReshuffling] = useState(false);
+  const [isChooseModalOpen, setIsChooseModalOpen] = useState(false);
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Fetch true database-backed upcoming prize queue
   const fetchQueue = useCallback(async () => {
@@ -124,7 +128,19 @@ export const UpcomingPrizesQueue: React.FC<UpcomingPrizesQueueProps> = ({
           </div>
         </button>
 
-        <div className="flex items-center space-x-2 self-end sm:self-center flex-shrink-0">
+        <div className="flex items-center space-x-2 self-end sm:self-center flex-shrink-0 flex-wrap gap-y-2">
+          {/* Choose Next Prize Button */}
+          <button
+            type="button"
+            onClick={() => setIsChooseModalOpen(true)}
+            disabled={loading || prizes.filter((p) => p.is_active && p.remaining_quantity > 0).length === 0}
+            className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/50 text-xs font-semibold flex items-center space-x-1.5 transition-colors disabled:opacity-50 shadow-sm"
+            title="Choose which prize will be won next"
+          >
+            <Target className="w-3.5 h-3.5 text-amber-400" />
+            <span>Choose Next Prize</span>
+          </button>
+
           {/* Refresh Button */}
           <button
             type="button"
@@ -163,6 +179,21 @@ export const UpcomingPrizesQueue: React.FC<UpcomingPrizesQueueProps> = ({
       {/* Collapsible Content */}
       {isOpen && (
         <div className="p-4 sm:p-6 bg-slate-900/60 flex flex-col space-y-4 animate-fadeIn">
+          {successBanner && (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs text-emerald-300 animate-fadeIn">
+              <span className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                <span className="font-semibold">{successBanner}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setSuccessBanner(null)}
+                className="text-emerald-400 hover:text-white font-bold ml-2 text-sm"
+              >
+                ✕
+              </button>
+            </div>
+          )}
           {loading && queue.length === 0 ? (
             <div className="p-8 text-center text-slate-400 text-sm flex items-center justify-center space-x-2">
               <RefreshCw className="w-4 h-4 animate-spin text-amber-400" />
@@ -260,6 +291,22 @@ export const UpcomingPrizesQueue: React.FC<UpcomingPrizesQueueProps> = ({
                         Odds: <span className="text-amber-300 font-semibold">{probability}%</span>
                       </span>
                     </div>
+
+                    {/* Change Button for Slot #1 */}
+                    {isNext && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsChooseModalOpen(true);
+                        }}
+                        className="w-full mt-2.5 py-1 px-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[10px] font-bold flex items-center justify-center space-x-1.5 transition-all shadow-sm cursor-pointer"
+                        title="Change which prize is awarded next"
+                      >
+                        <Target className="w-3 h-3 text-amber-400" />
+                        <span>Change Next Prize</span>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -280,6 +327,21 @@ export const UpcomingPrizesQueue: React.FC<UpcomingPrizesQueueProps> = ({
           </div>
         </div>
       )}
+
+      {/* Choose Next Prize Modal */}
+      <ChooseNextPrizeModal
+        isOpen={isChooseModalOpen}
+        onClose={() => setIsChooseModalOpen(false)}
+        campaignId={campaignId}
+        prizes={prizes}
+        currentNextPrizeId={queue.length > 0 ? queue[0].prize_id : undefined}
+        onSuccess={async (prizeName) => {
+          setSuccessBanner(`Guaranteed Next Prize successfully updated to "${prizeName}"!`);
+          await fetchQueue();
+          if (onPrizesUpdated) onPrizesUpdated();
+        }}
+      />
     </div>
   );
 };
+

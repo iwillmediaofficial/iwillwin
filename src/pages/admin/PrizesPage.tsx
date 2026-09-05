@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
-import { supabase, reshufflePrizeQueue } from '@/lib/supabase';
+import { supabase, reshufflePrizeQueue, setNextPrize } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { PrizeModal } from '@/components/admin/PrizeModal';
 import { PrizeDesktopTable } from '@/components/admin/PrizeDesktopTable';
@@ -127,6 +127,21 @@ export const PrizesPage: React.FC = () => {
     }
   };
 
+  const handleSetNextPrize = async (prize: Prize) => {
+    if (!selectedCampaignId) return;
+    try {
+      const res = await setNextPrize(selectedCampaignId, prize.id);
+      if (res.success) {
+        await fetchData();
+        alert(`Guaranteed Next Prize set to "${prize.name}"!`);
+      } else {
+        alert(res.message || 'Failed to set next prize');
+      }
+    } catch (err: any) {
+      alert(`Error setting next prize: ${err.message}`);
+    }
+  };
+
   const filteredPrizes = prizes.filter((p) => {
     if (!searchQuery) return true;
     return (
@@ -232,6 +247,7 @@ export const PrizesPage: React.FC = () => {
                 }}
                 onDelete={handleDeletePrize}
                 onToggleStatus={handleToggleStatus}
+                onSetNext={handleSetNextPrize}
               />
             </div>
 
@@ -250,6 +266,7 @@ export const PrizesPage: React.FC = () => {
                   }}
                   onDelete={handleDeletePrize}
                   onToggleStatus={handleToggleStatus}
+                  onSetNext={handleSetNextPrize}
                 />
               ))}
             </div>

@@ -255,6 +255,23 @@ export async function reshufflePrizeQueue(
   }
 }
 
+export async function setNextPrize(
+  campaignId: string,
+  prizeId: string
+): Promise<{ success: boolean; message?: string; prize_id?: string; prize_name?: string }> {
+  if (!campaignId || !prizeId) return { success: false, message: 'Missing campaign or prize ID' };
+  try {
+    const { data, error } = await supabase.rpc('set_next_prize', {
+      p_campaign_id: campaignId,
+      p_prize_id: prizeId,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string; prize_id?: string; prize_name?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to set next prize' };
+  }
+}
+
 /**
  * Admin Dashboard Stats Fetcher
  */

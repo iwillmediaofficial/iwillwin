@@ -829,6 +829,7 @@ GRANT EXECUTE ON FUNCTION public.update_lead_claim_status(UUID, TEXT) TO authent
 GRANT EXECUTE ON FUNCTION public.ensure_prize_queue(UUID, INTEGER) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.get_upcoming_prizes(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reshuffle_prize_queue(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.set_next_prize(UUID, UUID) TO authenticated;
 
 -- ENSURE PRIZE QUEUE
 CREATE OR REPLACE FUNCTION public.ensure_prize_queue(p_campaign_id UUID, p_target_count INTEGER DEFAULT 30)
@@ -991,4 +992,110 @@ BEGIN
     RETURN jsonb_build_object('success', true, 'message', 'Upcoming prize queue successfully reshuffled.');
 END;
 $$;
+
+-- SET NEXT PRIZE
+CREATE OR REPLACE FUNCTION public.set_next_prize(
+    p_campaign_id UUID,
+    p_prize_id UUID
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_prize RECORD;
+    v_first_queue_id UUID;
+    v_first_prize_id UUID;
+    v_other_queue_id UUID;
+BEGIN
+    -- 1. Check access
+    IF NOT public.has_campaign_access(p_campaign_id) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied to this campaign.');
+    END IF;
+
+    -- 2. Verify prize
+    SELECT * INTO v_prize
+    FROM public.prizes
+    WHERE id = p_prize_id AND campaign_id = p_campaign_id;
+
+    IF NOT FOUND THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Prize not found in this campaign.');
+    END IF;
+
+    IF NOT v_prize.is_active THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Cannot select an inactive prize. Please activate it first.');
+    END IF;
+
+    IF v_prize.remaining_quantity <= 0 THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Cannot select a prize with 0 remaining inventory.');
+    END IF;
+
+    IF v_prize.maximum_limit > 0 AND v_prize.supplied_quantity >= v_prize.maximum_limit THEN
+        RETURN jsonb_build_object('success', false, 'message', 'This prize has reached its maximum total limit.');
+    END IF;
+
+    -- 3. Ensure queue exists
+    PERFORM public.ensure_prize_queue(p_campaign_id, 30);
+
+    -- 4. Find the first queued slot
+    SELECT id, prize_id INTO v_first_queue_id, v_first_prize_id
+    FROM public.campaign_prize_queue
+    WHERE campaign_id = p_campaign_id AND status = 'queued'
+    ORDER BY slot_number ASC
+    LIMIT 1
+    FOR UPDATE;
+
+    IF v_first_queue_id IS NULL THEN
+        -- Fallback: insert as slot 1
+        INSERT INTO public.campaign_prize_queue (campaign_id, prize_id, slot_number, status)
+        VALUES (p_campaign_id, p_prize_id, 1, 'queued');
+        
+        RETURN jsonb_build_object(
+            'success', true,
+            'message', 'Next prize successfully set to ' || v_prize.name || '!',
+            'prize_id', p_prize_id,
+            'prize_name', v_prize.name
+        );
+    END IF;
+
+    -- If the first slot is already this prize, return success immediately
+    IF v_first_prize_id = p_prize_id THEN
+        RETURN jsonb_build_object(
+            'success', true,
+            'message', v_prize.name || ' is already set as the next prize.',
+            'prize_id', p_prize_id,
+            'prize_name', v_prize.name
+        );
+    END IF;
+
+    -- Check if this prize is already queued later in the unallocated queue
+    SELECT id INTO v_other_queue_id
+    FROM public.campaign_prize_queue
+    WHERE campaign_id = p_campaign_id 
+      AND status = 'queued' 
+      AND prize_id = p_prize_id 
+      AND id != v_first_queue_id
+    ORDER BY slot_number ASC
+    LIMIT 1
+    FOR UPDATE;
+
+    IF v_other_queue_id IS NOT NULL THEN
+        -- Swap so we preserve existing queue slots
+        UPDATE public.campaign_prize_queue SET prize_id = v_first_prize_id WHERE id = v_other_queue_id;
+        UPDATE public.campaign_prize_queue SET prize_id = p_prize_id WHERE id = v_first_queue_id;
+    ELSE
+        -- Otherwise directly set the first slot to the chosen prize
+        UPDATE public.campaign_prize_queue SET prize_id = p_prize_id WHERE id = v_first_queue_id;
+    END IF;
+
+    RETURN jsonb_build_object(
+        'success', true,
+        'message', 'Next prize successfully set to ' || v_prize.name || '!',
+        'prize_id', p_prize_id,
+        'prize_name', v_prize.name
+    );
+END;
+$$;
+
 

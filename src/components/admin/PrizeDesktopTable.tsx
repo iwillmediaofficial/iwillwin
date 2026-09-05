@@ -1,13 +1,14 @@
 import React from 'react';
 import type { Prize } from '@/types/database';
 import { Badge } from '@/components/common/Badge';
-import { Edit2, Trash2, Gift } from 'lucide-react';
+import { Edit2, Trash2, Gift, Target } from 'lucide-react';
 
 interface PrizeDesktopTableProps {
   prizes: Prize[];
   onEdit: (prize: Prize) => void;
   onDelete: (id: string, name: string) => void;
   onToggleStatus: (prize: Prize) => void;
+  onSetNext?: (prize: Prize) => void;
 }
 
 export const PrizeDesktopTable: React.FC<PrizeDesktopTableProps> = ({
@@ -15,6 +16,7 @@ export const PrizeDesktopTable: React.FC<PrizeDesktopTableProps> = ({
   onEdit,
   onDelete,
   onToggleStatus,
+  onSetNext,
 }) => {
   return (
     <div className="w-full overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900 shadow-xl">
@@ -122,6 +124,15 @@ export const PrizeDesktopTable: React.FC<PrizeDesktopTableProps> = ({
                 {/* Actions */}
                 <td className="py-3 px-4 text-right">
                   <div className="flex items-center justify-end space-x-1.5">
+                    {onSetNext && p.is_active && p.remaining_quantity > 0 && (
+                      <button
+                        onClick={() => onSetNext(p)}
+                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer"
+                        title="Set as Guaranteed Next Prize"
+                      >
+                        <Target className="w-4 h-4" />
+                      </button>
+                    )}
                     <button
                       onClick={() => onEdit(p)}
                       className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors"
