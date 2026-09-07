@@ -74,6 +74,18 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   const [showReadyBadge, setShowReadyBadge] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
+  const handleTurnstileVerify = React.useCallback((token: string) => {
+    setTurnstileToken(token);
+  }, []);
+
+  const handleTurnstileExpire = React.useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
+  const handleTurnstileError = React.useCallback(() => {
+    setTurnstileToken(null);
+  }, []);
+
   const instaBtnRef = useRef<HTMLButtonElement>(null);
   const submitBtnRef = useRef<HTMLButtonElement>(null);
   const wasValidRef = useRef(false);
@@ -464,9 +476,9 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
         {/* Step 3: Cloudflare Turnstile Bot Verification */}
         <div className="py-1 flex flex-col items-center">
           <TurnstileWidget
-            onVerify={(token) => setTurnstileToken(token)}
-            onExpire={() => setTurnstileToken(null)}
-            onError={() => setTurnstileToken(null)}
+            onVerify={handleTurnstileVerify}
+            onExpire={handleTurnstileExpire}
+            onError={handleTurnstileError}
           />
         </div>
 
