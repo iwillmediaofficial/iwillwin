@@ -37,6 +37,7 @@ export async function participateAndScratch(params: {
   mobile: string;
   email: string;
   dob?: string;
+  turnstileToken?: string;
 }): Promise<ParticipationResponse> {
   try {
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : null;
@@ -48,6 +49,7 @@ export async function participateAndScratch(params: {
       p_ip: null,
       p_user_agent: userAgent,
       p_dob: params.dob || null,
+      p_turnstile_token: params.turnstileToken || null,
     });
 
     if (error) {

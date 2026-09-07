@@ -14,10 +14,17 @@ import {
   MessageCircle,
 } from 'lucide-react';
 import { animateShake, animateButtonReady } from '@/lib/gsap';
+import { TurnstileWidget } from '@/components/common/TurnstileWidget';
 
 interface ParticipantFormProps {
   campaign: Campaign;
-  onSubmit: (data: { name: string; mobile: string; email: string; dob?: string }) => Promise<void>;
+  onSubmit: (data: {
+    name: string;
+    mobile: string;
+    email: string;
+    dob?: string;
+    turnstileToken?: string;
+  }) => Promise<void>;
   isSubmitting: boolean;
   formRef?: React.RefObject<HTMLFormElement>;
   fieldRefs?: React.MutableRefObject<(HTMLDivElement | null)[]>;
@@ -65,6 +72,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
   // Flow States
   const [hasFollowedInstagram, setHasFollowedInstagram] = useState(false);
   const [showReadyBadge, setShowReadyBadge] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   const instaBtnRef = useRef<HTMLButtonElement>(null);
   const submitBtnRef = useRef<HTMLButtonElement>(null);
@@ -184,6 +192,11 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       return;
     }
 
+    if (!turnstileToken) {
+      alert('Please wait for the security check to complete.');
+      return;
+    }
+
     const formattedDob =
       birthDay && birthMonth ? `${birthDay.padStart(2, '0')} ${birthMonth}` : undefined;
 
@@ -192,6 +205,7 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
       mobile: mobile.trim(),
       email: email.trim(),
       dob: formattedDob,
+      turnstileToken,
     });
   };
 
@@ -447,18 +461,29 @@ export const ParticipantForm: React.FC<ParticipantFormProps> = ({
           )}
         </div>
 
-        {/* Step 3: Main Submit & Scratch Button */}
-        <div ref={submitRef as any} className="pt-2">
+        {/* Step 3: Cloudflare Turnstile Bot Verification */}
+        <div className="py-1 flex flex-col items-center">
+          <TurnstileWidget
+            onVerify={(token) => setTurnstileToken(token)}
+            onExpire={() => setTurnstileToken(null)}
+            onError={() => setTurnstileToken(null)}
+          />
+        </div>
+
+        {/* Step 4: Main Submit & Scratch Button */}
+        <div ref={submitRef as any} className="pt-1">
           <button
             ref={submitBtnRef}
             type="submit"
-            disabled={!hasFollowedInstagram || isSubmitting}
-            className="w-full bg-[#facc15] hover:bg-[#eab308] active:scale-[0.99] text-slate-950 font-black tracking-wide text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 uppercase disabled:opacity-40 disabled:cursor-not-allowed min-h-[50px]"
+            disabled={!hasFollowedInstagram || isSubmitting || !turnstileToken}
+            className="w-full bg-[#facc15] hover:bg-[#eab308] active:scale-[0.99] text-slate-950 font-black tracking-wide text-sm sm:text-base py-3.5 px-6 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center space-x-2 uppercase disabled:opacity-40 disabled:cursor-not-allowed min-h-[50px] cursor-pointer"
           >
             {isSubmitting ? (
               <span>Preparing your Scratch Card...</span>
             ) : showReadyBadge ? (
               <span>✓ READY TO PLAY</span>
+            ) : !turnstileToken && hasFollowedInstagram ? (
+              <span>Verifying Security...</span>
             ) : (
               <span>SUBMIT & SCRATCH →</span>
             )}

@@ -143,7 +143,7 @@ BEGIN
     END;
 
     IF v_uid IS NULL THEN
-        RETURN true;
+        RETURN false;
     END IF;
 
     RETURN EXISTS (
@@ -171,7 +171,7 @@ BEGIN
     END;
 
     IF v_uid IS NULL THEN
-        RETURN true;
+        RETURN false;
     END IF;
 
     RETURN EXISTS (
@@ -292,15 +292,27 @@ DROP POLICY IF EXISTS "Users can view own admin profile" ON public.admin_profile
 DROP POLICY IF EXISTS "Super admins can manage admin profiles" ON public.admin_profiles;
 DROP POLICY IF EXISTS "Authenticated users can view admin profiles" ON public.admin_profiles;
 DROP POLICY IF EXISTS "Authenticated users can manage admin profiles" ON public.admin_profiles;
+DROP POLICY IF EXISTS "Users can view own admin profile or super admin views all" ON public.admin_profiles;
+DROP POLICY IF EXISTS "Only super admins can insert admin profiles" ON public.admin_profiles;
+DROP POLICY IF EXISTS "Only super admins can update admin profiles" ON public.admin_profiles;
+DROP POLICY IF EXISTS "Only super admins can delete admin profiles" ON public.admin_profiles;
 
-CREATE POLICY "Authenticated users can view admin profiles" ON public.admin_profiles
-FOR SELECT TO authenticated
-USING (true);
+CREATE POLICY "Users can view own admin profile or super admin views all" ON public.admin_profiles 
+FOR SELECT TO authenticated 
+USING (auth_user_id = auth.uid() OR public.is_super_admin());
 
-CREATE POLICY "Authenticated users can manage admin profiles" ON public.admin_profiles
-FOR ALL TO authenticated
-USING (true)
-WITH CHECK (true);
+CREATE POLICY "Only super admins can insert admin profiles" ON public.admin_profiles 
+FOR INSERT TO authenticated 
+WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Only super admins can update admin profiles" ON public.admin_profiles 
+FOR UPDATE TO authenticated 
+USING (public.is_super_admin()) 
+WITH CHECK (public.is_super_admin());
+
+CREATE POLICY "Only super admins can delete admin profiles" ON public.admin_profiles 
+FOR DELETE TO authenticated 
+USING (public.is_super_admin() AND role != 'super_admin');
 
 -- TRIGGER FUNCTION
 CREATE OR REPLACE FUNCTION public.handle_new_admin_user()
@@ -505,12 +517,13 @@ CREATE OR REPLACE FUNCTION public.participate_and_scratch(
     p_email TEXT,
     p_ip TEXT DEFAULT NULL,
     p_user_agent TEXT DEFAULT NULL,
-    p_dob TEXT DEFAULT NULL
+    p_dob TEXT DEFAULT NULL,
+    p_turnstile_token TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, pg_temp
+SET search_path = public, extensions, pg_temp
 AS $$
 DECLARE
     v_campaign RECORD;
@@ -520,7 +533,7 @@ DECLARE
     v_clean_email TEXT;
     v_clean_dob TEXT;
     v_claim_code TEXT;
-    v_existing_lead RECORD;
+    v_existing_id UUID;
     v_candidate RECORD;
     v_total_weight INTEGER := 0;
     v_random_weight INTEGER;
@@ -529,11 +542,57 @@ DECLARE
     v_selected_prize RECORD;
     v_daily_count INTEGER;
     v_hourly_count INTEGER;
+    v_verify_res JSONB;
+    v_extracted_ip TEXT;
 BEGIN
+    -- 1. Turnstile Bot Verification
+    IF p_turnstile_token IS NULL OR TRIM(p_turnstile_token) = '' THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'code', 'CAPTCHA_REQUIRED',
+            'message', 'Security verification required. Please complete the security check.'
+        );
+    END IF;
+
+    BEGIN
+        SELECT (http_post(
+            'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+            'secret=0x4AAAAAAErAa000BM_pz8SUX-PTPt4ynHM&response=' || urlencode(p_turnstile_token),
+            'application/x-www-form-urlencoded'
+        )).content::jsonb INTO v_verify_res;
+
+        IF NOT COALESCE((v_verify_res->>'success')::boolean, false) THEN
+            RETURN jsonb_build_object(
+                'success', false,
+                'code', 'CAPTCHA_FAILED',
+                'message', 'Security verification failed. Please refresh and try again.'
+            );
+        END IF;
+    EXCEPTION WHEN OTHERS THEN
+        RETURN jsonb_build_object(
+            'success', false,
+            'code', 'CAPTCHA_ERROR',
+            'message', 'Security verification service temporarily unavailable. Please try again.'
+        );
+    END;
+
+    -- 2. Input normalization
     v_clean_name := NULLIF(TRIM(p_name), '');
     v_clean_mobile := NULLIF(REGEXP_REPLACE(p_mobile, '[^0-9+]', '', 'g'), '');
     v_clean_email := NULLIF(LOWER(TRIM(p_email)), '');
     v_clean_dob := NULLIF(TRIM(p_dob), '');
+
+    -- Extract real client IP
+    BEGIN
+        v_extracted_ip := COALESCE(
+            NULLIF(TRIM(p_ip), ''),
+            current_setting('request.headers', true)::json->>'cf-connecting-ip',
+            current_setting('request.headers', true)::json->>'x-real-ip',
+            current_setting('request.headers', true)::json->>'x-forwarded-for'
+        );
+    EXCEPTION WHEN OTHERS THEN
+        v_extracted_ip := p_ip;
+    END;
 
     SELECT * INTO v_campaign FROM public.campaigns WHERE slug = p_campaign_slug LIMIT 1;
 
@@ -565,60 +624,37 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'code', 'DOB_REQUIRED', 'message', 'Please select your Date of Birth.');
     END IF;
 
+    -- 3. Duplicate checks without leaking claim codes or prizes
     IF v_campaign.unique_mobile AND v_clean_mobile IS NOT NULL THEN
-        SELECT l.*, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
-        INTO v_existing_lead
-        FROM public.leads l
-        LEFT JOIN public.prizes p ON l.prize_id = p.id
-        WHERE l.campaign_id = v_campaign.id AND l.mobile = v_clean_mobile
-        LIMIT 1;
-
-        IF FOUND THEN
+        IF EXISTS (
+            SELECT 1 FROM public.leads
+            WHERE campaign_id = v_campaign.id AND mobile = v_clean_mobile
+        ) THEN
             RETURN jsonb_build_object(
                 'success', false,
                 'code', 'DUPLICATE_MOBILE',
-                'message', 'This mobile number has already participated in this campaign.',
-                'lead_id', v_existing_lead.id,
-                'claim_code', v_existing_lead.claim_code,
-                'player_mobile', v_existing_lead.mobile,
-                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
-                'scratch_status', v_existing_lead.scratch_status,
-                'prize', CASE WHEN v_existing_lead.prize_id IS NOT NULL THEN
-                    jsonb_build_object('id', v_existing_lead.prize_id, 'name', v_existing_lead.prize_name, 'description', v_existing_lead.prize_desc, 'image_url', v_existing_lead.prize_img)
-                ELSE NULL END
+                'message', 'This mobile number has already participated in this campaign.'
             );
         END IF;
     END IF;
 
     IF v_campaign.unique_email AND v_clean_email IS NOT NULL THEN
-        SELECT l.*, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
-        INTO v_existing_lead
-        FROM public.leads l
-        LEFT JOIN public.prizes p ON l.prize_id = p.id
-        WHERE l.campaign_id = v_campaign.id AND l.email = v_clean_email
-        LIMIT 1;
-
-        IF FOUND THEN
+        IF EXISTS (
+            SELECT 1 FROM public.leads
+            WHERE campaign_id = v_campaign.id AND email = v_clean_email
+        ) THEN
             RETURN jsonb_build_object(
                 'success', false,
                 'code', 'DUPLICATE_EMAIL',
-                'message', 'This email address has already participated in this campaign.',
-                'lead_id', v_existing_lead.id,
-                'claim_code', v_existing_lead.claim_code,
-                'player_mobile', v_existing_lead.mobile,
-                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
-                'scratch_status', v_existing_lead.scratch_status,
-                'prize', CASE WHEN v_existing_lead.prize_id IS NOT NULL THEN
-                    jsonb_build_object('id', v_existing_lead.prize_id, 'name', v_existing_lead.prize_name, 'description', v_existing_lead.prize_desc, 'image_url', v_existing_lead.prize_img)
-                ELSE NULL END
+                'message', 'This email address has already participated in this campaign.'
             );
         END IF;
     END IF;
 
-    -- 1. Ensure the prize queue has at least 20 slots
+    -- 4. Ensure the prize queue has at least 20 slots
     PERFORM public.ensure_prize_queue(v_campaign.id, 20);
 
-    -- 2. Pull the next queued prize that satisfies limits
+    -- 5. Pull the next queued prize that satisfies limits
     FOR v_candidate IN
         SELECT q.id as queue_id, q.slot_number, p.id as prize_id, p.name, p.description, p.image_url,
                p.maximum_limit, p.daily_limit, p.hourly_limit, p.supplied_quantity, p.remaining_quantity
@@ -675,12 +711,28 @@ BEGIN
     -- Generate unique winning verification code
     v_claim_code := 'WIN-' || UPPER(SUBSTRING(MD5(gen_random_uuid()::TEXT || clock_timestamp()::TEXT), 1, 8));
 
-    -- Insert participant lead
-    INSERT INTO public.leads (
-        campaign_id, name, mobile, email, dob, claim_code, prize_id, scratch_status, ip_address, user_agent, participated_at
-    ) VALUES (
-        v_campaign.id, v_clean_name, v_clean_mobile, v_clean_email, v_clean_dob, v_claim_code, v_selected_prize_id, 'Pending', p_ip, p_user_agent, NOW()
-    ) RETURNING id INTO v_lead_id;
+    -- Insert participant lead with race-condition exception handling
+    BEGIN
+        INSERT INTO public.leads (
+            campaign_id, name, mobile, email, dob, claim_code, prize_id, scratch_status, ip_address, user_agent, participated_at
+        ) VALUES (
+            v_campaign.id, v_clean_name, v_clean_mobile, v_clean_email, v_clean_dob, v_claim_code, v_selected_prize_id, 'Pending', v_extracted_ip, p_user_agent, NOW()
+        ) RETURNING id INTO v_lead_id;
+    EXCEPTION WHEN unique_violation THEN
+        -- Rollback prize inventory decrement if race condition hit
+        IF v_selected_prize_id IS NOT NULL THEN
+            UPDATE public.prizes
+            SET supplied_quantity = supplied_quantity - 1,
+                remaining_quantity = remaining_quantity + 1
+            WHERE id = v_selected_prize_id;
+        END IF;
+
+        RETURN jsonb_build_object(
+            'success', false,
+            'code', 'DUPLICATE_MOBILE',
+            'message', 'This mobile number has already participated in this campaign.'
+        );
+    END;
 
     -- Mark queue slot as allocated to this lead
     IF v_candidate.queue_id IS NOT NULL THEN
@@ -714,6 +766,7 @@ BEGIN
     );
 END;
 $$;
+
 
 -- MARK SCRATCH REVEALED
 CREATE OR REPLACE FUNCTION public.mark_scratch_revealed(p_lead_id UUID)
@@ -815,7 +868,7 @@ END;
 $$;
 
 -- GRANT PERMISSIONS
-GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.participate_and_scratch(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.mark_scratch_revealed(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_campaign(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.is_super_admin() TO authenticated, anon;
@@ -827,9 +880,14 @@ GRANT EXECUTE ON FUNCTION public.admin_delete_client(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.admin_get_clients() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.update_lead_claim_status(UUID, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ensure_prize_queue(UUID, INTEGER) TO authenticated, anon;
+REVOKE EXECUTE ON FUNCTION public.get_upcoming_prizes(UUID, INTEGER) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.get_upcoming_prizes(UUID, INTEGER) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.reshuffle_prize_queue(UUID) TO authenticated;
+REVOKE EXECUTE ON FUNCTION public.set_next_prize(UUID, UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.set_next_prize(UUID, UUID) TO authenticated;
+
+-- UNIQUE INDEX TO PREVENT CONCURRENT DUPLICATE LEADS
+CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_campaign_mobile ON public.leads (campaign_id, mobile);
 
 -- ENSURE PRIZE QUEUE
 CREATE OR REPLACE FUNCTION public.ensure_prize_queue(p_campaign_id UUID, p_target_count INTEGER DEFAULT 30)
@@ -920,6 +978,10 @@ AS $$
 DECLARE
     v_res JSONB;
 BEGIN
+    IF NOT public.has_campaign_access(p_campaign_id) THEN
+        RETURN '[]'::jsonb;
+    END IF;
+
     PERFORM public.ensure_prize_queue(p_campaign_id, 30);
 
     WITH numbered_items AS (

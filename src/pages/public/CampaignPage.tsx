@@ -107,6 +107,7 @@ export const CampaignPage: React.FC = () => {
     mobile: string;
     email: string;
     dob?: string;
+    turnstileToken?: string;
   }) => {
     if (!campaign) return;
     setIsSubmitting(true);
@@ -119,6 +120,7 @@ export const CampaignPage: React.FC = () => {
       mobile: formData.mobile,
       email: formData.email,
       dob: formData.dob,
+      turnstileToken: formData.turnstileToken,
     });
 
     setIsSubmitting(false);

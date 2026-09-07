@@ -45,6 +45,10 @@ export function exportToCsv(filename: string, rows: Record<string, any>[]) {
       headers
         .map((header) => {
           let value = row[header] === null || row[header] === undefined ? '' : String(row[header]);
+          // Neutralize formula injection (CWE-1236) for spreadsheet software (Excel, Calc)
+          if (/^[=+\-@\t\r]/.test(value)) {
+            value = `'${value}`;
+          }
           // Escape quotes
           value = value.replace(/"/g, '""');
           if (value.includes(',') || value.includes('\n') || value.includes('"')) {
