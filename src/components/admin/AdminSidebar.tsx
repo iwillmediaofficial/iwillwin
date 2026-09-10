@@ -15,12 +15,14 @@ import {
 import { cn } from '@/lib/utils';
 
 export const AdminSidebar: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
-  const { adminProfile, isSuperAdmin, isCustomerAdmin, isCustomerViewer, signOut } = useAuth();
+  const { adminProfile, isSuperAdmin, isCustomerAdmin, isCustomerViewer, customerId, signOut } = useAuth();
 
   const navItems = [
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
     ...(isSuperAdmin
       ? [{ to: '/admin/customers', label: 'Customers', icon: Building2, end: false }]
+      : customerId
+      ? [{ to: `/admin/customers/${customerId}`, label: 'Customer Workspace', icon: Building2, end: false }]
       : []),
     { to: '/admin/campaigns', label: 'Campaigns', icon: Megaphone, end: false },
     { to: '/admin/prizes', label: 'Prize Configuration', icon: Gift, end: false },

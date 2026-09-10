@@ -152,27 +152,16 @@ USING (public.is_super_admin())
 WITH CHECK (public.is_super_admin());
 
 DROP POLICY IF EXISTS "Users can view accessible customer_users" ON public.customer_users;
-CREATE POLICY "Users can view accessible customer_users" ON public.customer_users
-FOR SELECT TO authenticated
-USING (public.has_customer_access(customer_id));
-
 DROP POLICY IF EXISTS "Super admins and customer admins can manage customer_users" ON public.customer_users;
-CREATE POLICY "Super admins and customer admins can manage customer_users" ON public.customer_users
+
+CREATE POLICY "customer_users_select" ON public.customer_users
+FOR SELECT TO authenticated
+USING (auth_user_id = auth.uid() OR public.is_super_admin());
+
+CREATE POLICY "customer_users_super_admin_manage" ON public.customer_users
 FOR ALL TO authenticated
-USING (public.is_super_admin() OR EXISTS (
-    SELECT 1 FROM public.customer_users cu
-    WHERE cu.auth_user_id = auth.uid()
-      AND cu.customer_id = customer_users.customer_id
-      AND cu.role = 'customer_admin'
-      AND cu.status = 'active'
-))
-WITH CHECK (public.is_super_admin() OR EXISTS (
-    SELECT 1 FROM public.customer_users cu
-    WHERE cu.auth_user_id = auth.uid()
-      AND cu.customer_id = customer_users.customer_id
-      AND cu.role = 'customer_admin'
-      AND cu.status = 'active'
-));
+USING (public.is_super_admin())
+WITH CHECK (public.is_super_admin());
 
 -- Allow super admins and customer admins to insert campaigns
 DROP POLICY IF EXISTS "Super admins can insert campaigns" ON public.campaigns;
@@ -593,6 +582,12 @@ END;
 $$;
 
 -- 9. PERMISSIONS
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customers TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_users TO authenticated;
+GRANT SELECT ON public.customers TO anon;
+GRANT ALL ON public.customers TO service_role;
+GRANT ALL ON public.customer_users TO service_role;
+
 GRANT EXECUTE ON FUNCTION public.has_customer_access(UUID) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.has_campaign_access(UUID) TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION public.admin_get_customers() TO authenticated;
