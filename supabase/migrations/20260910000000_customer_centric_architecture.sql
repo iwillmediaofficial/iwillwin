@@ -151,6 +151,28 @@ FOR ALL TO authenticated
 USING (public.is_super_admin())
 WITH CHECK (public.is_super_admin());
 
+DROP POLICY IF EXISTS "Super admins and customer admins can update customers" ON public.customers;
+CREATE POLICY "Super admins and customer admins can update customers" ON public.customers
+FOR UPDATE TO authenticated
+USING (
+    public.is_super_admin() OR EXISTS (
+        SELECT 1 FROM public.customer_users cu
+        WHERE cu.auth_user_id = auth.uid()
+          AND cu.customer_id = customers.id
+          AND cu.role = 'customer_admin'
+          AND cu.status = 'active'
+    )
+)
+WITH CHECK (
+    public.is_super_admin() OR EXISTS (
+        SELECT 1 FROM public.customer_users cu
+        WHERE cu.auth_user_id = auth.uid()
+          AND cu.customer_id = customers.id
+          AND cu.role = 'customer_admin'
+          AND cu.status = 'active'
+    )
+);
+
 DROP POLICY IF EXISTS "Users can view accessible customer_users" ON public.customer_users;
 DROP POLICY IF EXISTS "Super admins and customer admins can manage customer_users" ON public.customer_users;
 
@@ -414,9 +436,21 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth, pg_temp
 AS $$
+DECLARE
+    v_is_super BOOLEAN;
+    v_is_customer_admin BOOLEAN;
 BEGIN
-    IF NOT public.is_super_admin() THEN
-        RETURN jsonb_build_object('success', false, 'message', 'Access denied: Only Super Admins can update customers.');
+    v_is_super := public.is_super_admin();
+    v_is_customer_admin := EXISTS (
+        SELECT 1 FROM public.customer_users cu
+        WHERE cu.auth_user_id = auth.uid()
+          AND cu.customer_id = p_customer_id
+          AND cu.role = 'customer_admin'
+          AND cu.status = 'active'
+    );
+
+    IF NOT (v_is_super OR v_is_customer_admin) THEN
+        RETURN jsonb_build_object('success', false, 'message', 'Access denied: You do not have permission to update this customer.');
     END IF;
 
     UPDATE public.customers
@@ -425,10 +459,17 @@ BEGIN
         contact_person = COALESCE(NULLIF(TRIM(p_contact_person), ''), contact_person),
         email = COALESCE(NULLIF(LOWER(TRIM(p_email)), ''), email),
         phone = COALESCE(p_phone, phone),
-        logo_url = COALESCE(p_logo_url, logo_url),
+        logo_url = CASE
+            WHEN p_logo_url = '__REMOVE__' OR p_logo_url = '' THEN NULL
+            WHEN p_logo_url IS NOT NULL THEN p_logo_url
+            ELSE logo_url
+        END,
         address = COALESCE(p_address, address),
         notes = COALESCE(p_notes, notes),
-        status = COALESCE(p_status, status),
+        status = CASE
+            WHEN v_is_super AND p_status IS NOT NULL THEN p_status
+            ELSE status
+        END,
         updated_at = NOW()
     WHERE id = p_customer_id;
 

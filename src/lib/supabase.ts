@@ -204,7 +204,12 @@ export async function adminUpdateCustomer(
       p_contact_person: params.contact_person || null,
       p_email: params.email || null,
       p_phone: params.phone !== undefined ? params.phone : null,
-      p_logo_url: params.logo_url !== undefined ? params.logo_url : null,
+      p_logo_url:
+        params.logo_url === null || params.logo_url === ''
+          ? '__REMOVE__'
+          : params.logo_url !== undefined
+          ? params.logo_url
+          : null,
       p_address: params.address !== undefined ? params.address : null,
       p_notes: params.notes !== undefined ? params.notes : null,
       p_status: params.status || null,

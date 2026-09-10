@@ -248,10 +248,18 @@ export const CampaignsPage: React.FC = () => {
                       {camp.customer && (
                         <Link
                           to={`/admin/customers/${camp.customer_id}`}
-                          className="flex items-center space-x-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 max-w-[140px] truncate transition-colors"
+                          className="flex items-center space-x-1.5 text-[11px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 max-w-[150px] truncate transition-colors"
                           title={`Customer: ${camp.customer.company_name}`}
                         >
-                          <Building2 className="w-3 h-3 flex-shrink-0" />
+                          {camp.customer.logo_url ? (
+                            <img
+                              src={camp.customer.logo_url}
+                              alt=""
+                              className="w-3.5 h-3.5 rounded object-contain flex-shrink-0"
+                            />
+                          ) : (
+                            <Building2 className="w-3 h-3 flex-shrink-0" />
+                          )}
                           <span className="truncate">{camp.customer.company_name}</span>
                         </Link>
                       )}

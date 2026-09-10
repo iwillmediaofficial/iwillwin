@@ -13,6 +13,7 @@ import {
 } from '@/lib/supabase';
 import { CampaignModal } from '@/components/admin/CampaignModal';
 import { CustomerUserModal } from '@/components/admin/CustomerUserModal';
+import { CustomerLogo } from '@/components/admin/CustomerLogo';
 import { LeadDetailModal } from '@/components/admin/LeadDetailModal';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
@@ -118,6 +119,7 @@ export const CustomerDetailPage: React.FC = () => {
   });
   const [isSavingSettings, setIsSavingSettings] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoStatusMsg, setLogoStatusMsg] = useState<string | null>(null);
 
   // Fetch Customer Details
   const fetchCustomerData = async () => {
@@ -366,18 +368,57 @@ export const CustomerDetailPage: React.FC = () => {
     }
   };
 
-  // Upload Logo in Settings
+  // Upload Logo in Settings with Instant Auto-Save
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !customerId) return;
     setIsUploadingLogo(true);
+    setLogoStatusMsg(null);
     try {
       const url = await uploadCampaignAsset(file, 'logos');
       if (url) {
         setSettingsForm((prev) => ({ ...prev, logo_url: url }));
+        // Instantly save to database so the logo persists even if page is reloaded
+        const res = await adminUpdateCustomer(customerId, { logo_url: url });
+        if (res.success) {
+          setCustomer((prev) => (prev ? { ...prev, logo_url: url } : prev));
+          setLogoStatusMsg('✓ Logo uploaded and saved successfully to customer profile!');
+          setTimeout(() => setLogoStatusMsg(null), 4000);
+        } else {
+          alert(`Logo uploaded to storage, but failed to save to database: ${res.message}`);
+        }
+      } else {
+        alert('Failed to upload logo image. Please check file format and try again.');
       }
+    } catch (err: any) {
+      alert(err.message || 'Error uploading file');
     } finally {
       setIsUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  // Remove Logo in Settings with Instant Auto-Save
+  const handleRemoveLogo = async () => {
+    if (!customerId) return;
+    if (window.confirm('Are you sure you want to remove the customer brand logo?')) {
+      setIsUploadingLogo(true);
+      setLogoStatusMsg(null);
+      try {
+        const res = await adminUpdateCustomer(customerId, { logo_url: null });
+        if (res.success) {
+          setSettingsForm((prev) => ({ ...prev, logo_url: '' }));
+          setCustomer((prev) => (prev ? { ...prev, logo_url: null } : prev));
+          setLogoStatusMsg('✓ Customer logo removed.');
+          setTimeout(() => setLogoStatusMsg(null), 3000);
+        } else {
+          alert(`Failed to remove logo: ${res.message}`);
+        }
+      } catch (err: any) {
+        alert(err.message || 'Error removing logo');
+      } finally {
+        setIsUploadingLogo(false);
+      }
     }
   };
 
@@ -466,19 +507,13 @@ export const CustomerDetailPage: React.FC = () => {
                 </Link>
               )}
 
-              {customer.logo_url ? (
-                <div className="w-14 h-14 rounded-2xl bg-slate-950 border border-slate-800 p-1.5 flex items-center justify-center overflow-hidden flex-shrink-0">
-                  <img
-                    src={customer.logo_url}
-                    alt={customer.company_name}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-xl flex-shrink-0">
-                  {customer.company_name.slice(0, 2).toUpperCase()}
-                </div>
-              )}
+              <CustomerLogo
+                logoUrl={customer.logo_url}
+                name={customer.company_name}
+                className="w-14 h-14"
+                roundedClassName="rounded-2xl"
+                textClassName="text-xl"
+              />
 
               <div>
                 <div className="flex items-center space-x-2.5">
@@ -1448,30 +1483,31 @@ export const CustomerDetailPage: React.FC = () => {
 
                 {/* Logo Section */}
                 <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3">
-                  <label className="text-xs font-semibold text-slate-300 uppercase">
-                    Customer Brand Logo
-                  </label>
-                  <div className="flex items-center space-x-4">
-                    {settingsForm.logo_url ? (
-                      <div className="w-16 h-16 rounded-xl bg-slate-950 border border-slate-700 p-1 flex items-center justify-center overflow-hidden flex-shrink-0">
-                        <img
-                          src={settingsForm.logo_url}
-                          alt="Logo Preview"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                    ) : (
-                      <div className="w-16 h-16 rounded-xl border border-dashed border-slate-700 flex items-center justify-center text-slate-500 flex-shrink-0">
-                        <Building2 className="w-6 h-6" />
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-300 uppercase">
+                      Customer Brand Logo
+                    </label>
+                    {logoStatusMsg && (
+                      <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                        {logoStatusMsg}
+                      </span>
                     )}
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <CustomerLogo
+                      logoUrl={settingsForm.logo_url}
+                      name={settingsForm.company_name || 'Customer'}
+                      className="w-16 h-16"
+                      roundedClassName="rounded-xl"
+                      textClassName="text-xl"
+                    />
 
                     <div className="flex-1 space-y-2">
                       <div className="flex items-center space-x-2">
                         <label className="cursor-pointer">
                           <span className="inline-flex items-center space-x-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition-colors">
                             <Upload className="w-3.5 h-3.5" />
-                            <span>{isUploadingLogo ? 'Uploading...' : 'Upload Logo'}</span>
+                            <span>{isUploadingLogo ? 'Uploading & Saving...' : 'Upload Logo'}</span>
                           </span>
                           <input
                             type="file"
@@ -1484,8 +1520,9 @@ export const CustomerDetailPage: React.FC = () => {
                         {settingsForm.logo_url && (
                           <button
                             type="button"
-                            onClick={() => setSettingsForm({ ...settingsForm, logo_url: '' })}
-                            className="text-xs text-rose-400 hover:text-rose-300 font-medium"
+                            onClick={handleRemoveLogo}
+                            disabled={isUploadingLogo}
+                            className="text-xs text-rose-400 hover:text-rose-300 font-medium disabled:opacity-50"
                           >
                             Remove
                           </button>
@@ -1500,6 +1537,9 @@ export const CustomerDetailPage: React.FC = () => {
                         }
                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-amber-400"
                       />
+                      <p className="text-[11px] text-slate-500">
+                        PNG, JPG, or SVG. Uploaded logos are automatically saved to your company profile.
+                      </p>
                     </div>
                   </div>
                 </div>

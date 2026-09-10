@@ -10,6 +10,7 @@ import {
 } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { CustomerModal } from '@/components/admin/CustomerModal';
+import { CustomerLogo } from '@/components/admin/CustomerLogo';
 import { CampaignModal } from '@/components/admin/CampaignModal';
 import { Button } from '@/components/common/Button';
 import type { CustomerWithStats, Campaign } from '@/types/database';
@@ -303,19 +304,13 @@ export const CustomersPage: React.FC = () => {
                   {/* Top Bar: Logo & Status Badge */}
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center space-x-3">
-                      {cust.logo_url ? (
-                        <div className="w-12 h-12 rounded-xl bg-slate-950 border border-slate-800 p-1 flex items-center justify-center overflow-hidden flex-shrink-0">
-                          <img
-                            src={cust.logo_url}
-                            alt={cust.company_name}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-lg flex-shrink-0">
-                          {cust.company_name.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
+                      <CustomerLogo
+                        logoUrl={cust.logo_url}
+                        name={cust.company_name}
+                        className="w-12 h-12"
+                        roundedClassName="rounded-xl"
+                        textClassName="text-lg"
+                      />
 
                       <div className="min-w-0">
                         <Link

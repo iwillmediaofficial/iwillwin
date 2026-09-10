@@ -3,7 +3,8 @@ import type { Customer } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
-import { uploadCampaignAsset } from '@/lib/supabase';
+import { uploadCampaignAsset, adminUpdateCustomer } from '@/lib/supabase';
+import { CustomerLogo } from '@/components/admin/CustomerLogo';
 import { Building2, User, Mail, Phone, MapPin, FileText, Upload, Sparkles } from 'lucide-react';
 
 interface CustomerModalProps {
@@ -41,8 +42,10 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [logoSaveStatus, setLogoSaveStatus] = useState<string | null>(null);
 
   useEffect(() => {
+    setLogoSaveStatus(null);
     if (initialData) {
       setFormData({
         company_name: initialData.company_name || '',
@@ -73,10 +76,21 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
     if (!file) return;
 
     setIsUploadingLogo(true);
+    setLogoSaveStatus(null);
     try {
       const publicUrl = await uploadCampaignAsset(file, 'logos');
       if (publicUrl) {
         setFormData((prev) => ({ ...prev, logo_url: publicUrl }));
+        if (initialData?.id) {
+          const res = await adminUpdateCustomer(initialData.id, { logo_url: publicUrl });
+          if (res.success) {
+            setLogoSaveStatus('✓ Logo saved to profile');
+          } else {
+            setLogoSaveStatus('✓ Logo attached — click Update Customer to save');
+          }
+        } else {
+          setLogoSaveStatus('✓ Logo attached — click Create Customer to save');
+        }
       } else {
         alert('Failed to upload customer logo. Please try again.');
       }
@@ -84,6 +98,17 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
       alert(err.message || 'Error uploading file');
     } finally {
       setIsUploadingLogo(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setFormData((prev) => ({ ...prev, logo_url: '' }));
+    if (initialData?.id) {
+      await adminUpdateCustomer(initialData.id, { logo_url: null });
+      setLogoSaveStatus('✓ Logo removed');
+    } else {
+      setLogoSaveStatus(null);
     }
   };
 
@@ -177,25 +202,21 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
         <div className="p-4 bg-slate-900/70 border border-slate-800 rounded-xl space-y-3">
           <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center justify-between">
             <span>Customer Brand Logo</span>
-            {formData.logo_url && (
+            {logoSaveStatus ? (
+              <span className="text-[11px] text-emerald-400 font-normal">{logoSaveStatus}</span>
+            ) : formData.logo_url ? (
               <span className="text-[11px] text-emerald-400 font-normal">✓ Logo Attached</span>
-            )}
+            ) : null}
           </label>
 
           <div className="flex items-center space-x-4">
-            {formData.logo_url ? (
-              <div className="relative w-16 h-16 rounded-xl border border-slate-700 overflow-hidden bg-slate-950 flex items-center justify-center p-1.5 flex-shrink-0">
-                <img
-                  src={formData.logo_url}
-                  alt="Customer Logo"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            ) : (
-              <div className="w-16 h-16 rounded-xl border border-dashed border-slate-700 bg-slate-950/50 flex flex-col items-center justify-center text-slate-500 flex-shrink-0">
-                <Building2 className="w-6 h-6" />
-              </div>
-            )}
+            <CustomerLogo
+              logoUrl={formData.logo_url}
+              name={formData.company_name || 'Customer'}
+              className="w-16 h-16"
+              roundedClassName="rounded-xl"
+              textClassName="text-xl"
+            />
 
             <div className="flex-1 space-y-2">
               <div className="flex items-center space-x-2">
@@ -216,8 +237,9 @@ export const CustomerModal: React.FC<CustomerModalProps> = ({
                 {formData.logo_url && (
                   <button
                     type="button"
-                    onClick={() => setFormData({ ...formData, logo_url: '' })}
-                    className="text-xs text-rose-400 hover:text-rose-300 font-medium px-2 py-1"
+                    onClick={handleRemoveLogo}
+                    disabled={isUploadingLogo}
+                    className="text-xs text-rose-400 hover:text-rose-300 font-medium px-2 py-1 disabled:opacity-50"
                   >
                     Remove
                   </button>
