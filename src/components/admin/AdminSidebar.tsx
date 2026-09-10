@@ -3,10 +3,10 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import {
   LayoutDashboard,
+  Building2,
   Megaphone,
   Gift,
   Users,
-  UserCheck,
   Settings,
   LogOut,
   ExternalLink,
@@ -15,20 +15,20 @@ import {
 import { cn } from '@/lib/utils';
 
 export const AdminSidebar: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
-  const { adminProfile, isSuperAdmin, signOut } = useAuth();
+  const { adminProfile, isSuperAdmin, isCustomerAdmin, isCustomerViewer, signOut } = useAuth();
 
   const navItems = [
     { to: '/admin', label: 'Dashboard', icon: LayoutDashboard, end: true },
-    { to: '/admin/campaigns', label: 'Campaigns', icon: Megaphone },
-    { to: '/admin/prizes', label: 'Prize Configuration', icon: Gift },
-    { to: '/admin/leads', label: 'Leads & Winners', icon: Users },
+    ...(isSuperAdmin
+      ? [{ to: '/admin/customers', label: 'Customers', icon: Building2, end: false }]
+      : []),
+    { to: '/admin/campaigns', label: 'Campaigns', icon: Megaphone, end: false },
+    { to: '/admin/prizes', label: 'Prize Configuration', icon: Gift, end: false },
+    { to: '/admin/leads', label: 'Leads & Winners', icon: Users, end: false },
+    ...(isSuperAdmin
+      ? [{ to: '/admin/settings', label: 'Settings', icon: Settings, end: false }]
+      : []),
   ];
-
-  // Only Super Admins can manage Client Users and Global Settings
-  if (isSuperAdmin) {
-    navItems.push({ to: '/admin/users', label: 'Client Access & Users', icon: UserCheck, end: false });
-    navItems.push({ to: '/admin/settings', label: 'Settings', icon: Settings, end: false });
-  }
 
   return (
     <aside className="w-64 bg-slate-900/95 border-r border-slate-800 flex flex-col justify-between h-full p-4 select-none">
@@ -93,7 +93,15 @@ export const AdminSidebar: React.FC<{ onClose?: () => void }> = ({ onClose }) =>
             </span>
             <span className="text-[10px] text-amber-400/90 font-medium flex items-center space-x-1">
               <Shield className="w-3 h-3 text-amber-400" />
-              <span>{isSuperAdmin ? 'Super Administrator' : 'Client Manager'}</span>
+              <span>
+                {isSuperAdmin
+                  ? 'Super Administrator'
+                  : isCustomerAdmin
+                  ? 'Customer Admin'
+                  : isCustomerViewer
+                  ? 'Customer Viewer'
+                  : 'Customer User'}
+              </span>
             </span>
           </div>
 

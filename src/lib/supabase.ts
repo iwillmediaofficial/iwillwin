@@ -1,5 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import type { Campaign, ParticipationResponse, ClientUserItem } from '@/types/database';
+import type {
+  Campaign,
+  ParticipationResponse,
+  ClientUserItem,
+  CustomerWithStats,
+  CustomerDetailData,
+} from '@/types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rowuebmnqurugubichta.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJvd3VlYm1ucXVydWd1YmljaHRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczODA0NzMsImV4cCI6MjEwMjk1NjQ3M30.csQYvIG4R8IZ0BwOp3IKYuZ0_U3L0N9i5ISN6RiOmiY';
@@ -111,6 +117,152 @@ export async function uploadCampaignAsset(file: File, folder = 'uploads'): Promi
   } catch (err) {
     console.error('Error uploading asset:', err);
     return null;
+  }
+}
+
+/**
+ * Customer Architecture RPC Helpers
+ */
+export async function adminGetCustomers(): Promise<{
+  success: boolean;
+  data?: CustomerWithStats[];
+  message?: string;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('admin_get_customers');
+    if (error) throw error;
+    return data as { success: boolean; data?: CustomerWithStats[]; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to fetch customers' };
+  }
+}
+
+export async function adminGetCustomerDetail(customerId: string): Promise<{
+  success: boolean;
+  customer?: CustomerDetailData['customer'];
+  campaigns?: CustomerDetailData['campaigns'];
+  users?: CustomerDetailData['users'];
+  stats?: CustomerDetailData['stats'];
+  message?: string;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('admin_get_customer_detail', {
+      p_customer_id: customerId,
+    });
+    if (error) throw error;
+    return data as any;
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to fetch customer detail' };
+  }
+}
+
+export async function adminCreateCustomer(params: {
+  company_name: string;
+  contact_person: string;
+  email: string;
+  phone?: string | null;
+  logo_url?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  status?: string;
+}): Promise<{ success: boolean; id?: string; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_create_customer', {
+      p_company_name: params.company_name,
+      p_contact_person: params.contact_person,
+      p_email: params.email,
+      p_phone: params.phone || null,
+      p_logo_url: params.logo_url || null,
+      p_address: params.address || null,
+      p_notes: params.notes || null,
+      p_status: params.status || 'Active',
+    });
+    if (error) throw error;
+    return data as { success: boolean; id?: string; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to create customer' };
+  }
+}
+
+export async function adminUpdateCustomer(
+  customerId: string,
+  params: {
+    company_name?: string;
+    contact_person?: string;
+    email?: string;
+    phone?: string | null;
+    logo_url?: string | null;
+    address?: string | null;
+    notes?: string | null;
+    status?: string;
+  }
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_update_customer', {
+      p_customer_id: customerId,
+      p_company_name: params.company_name || null,
+      p_contact_person: params.contact_person || null,
+      p_email: params.email || null,
+      p_phone: params.phone !== undefined ? params.phone : null,
+      p_logo_url: params.logo_url !== undefined ? params.logo_url : null,
+      p_address: params.address !== undefined ? params.address : null,
+      p_notes: params.notes !== undefined ? params.notes : null,
+      p_status: params.status || null,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to update customer' };
+  }
+}
+
+export async function adminDeleteCustomer(
+  customerId: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_customer', {
+      p_customer_id: customerId,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to delete customer' };
+  }
+}
+
+export async function adminCreateCustomerUser(
+  customerId: string,
+  email: string,
+  password: string,
+  role: 'customer_admin' | 'customer_viewer' = 'customer_admin'
+): Promise<{ success: boolean; user_id?: string; email?: string; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_create_customer_user', {
+      p_customer_id: customerId,
+      p_email: email,
+      p_password: password,
+      p_role: role,
+    });
+    if (error) throw error;
+    return data as { success: boolean; user_id?: string; email?: string; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to create customer user' };
+  }
+}
+
+export async function adminDeleteCustomerUser(
+  userId: string,
+  customerId?: string
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_delete_customer_user', {
+      p_user_id: userId,
+      p_customer_id: customerId || null,
+    });
+    if (error) throw error;
+    return data as { success: boolean; message?: string };
+  } catch (err: any) {
+    return { success: false, message: err.message || 'Failed to delete customer user' };
   }
 }
 

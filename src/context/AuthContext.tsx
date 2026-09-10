@@ -1,15 +1,19 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import type { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { AdminProfile } from '@/types/database';
+import type { AdminProfile, CustomerUser } from '@/types/database';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   adminProfile: AdminProfile | null;
+  customerUser: CustomerUser | null;
+  customerId: string | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   isClient: boolean;
+  isCustomerAdmin: boolean;
+  isCustomerViewer: boolean;
   assignedCampaignIds: string[];
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -23,9 +27,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [adminProfile, setAdminProfile] = useState<AdminProfile | null>(null);
+  const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean>(false);
   const [isClient, setIsClient] = useState<boolean>(false);
+  const [isCustomerAdmin, setIsCustomerAdmin] = useState<boolean>(false);
+  const [isCustomerViewer, setIsCustomerViewer] = useState<boolean>(false);
   const [assignedCampaignIds, setAssignedCampaignIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -55,52 +63,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .eq('auth_user_id', authUser.id)
           .maybeSingle();
 
+        let isSuper = false;
         if (data && !error) {
           const profile = data as AdminProfile;
           setAdminProfile(profile);
+          isSuper = profile.role === 'super_admin';
+          setIsSuperAdmin(isSuper);
+        }
+
+        // 2. Fetch customer_users association
+        const { data: cuData } = await supabase
+          .from('customer_users')
+          .select('*')
+          .eq('auth_user_id', authUser.id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (cuData) {
+          const cu = cuData as CustomerUser;
+          setCustomerUser(cu);
+          setCustomerId(cu.customer_id);
+          setIsCustomerAdmin(cu.role === 'customer_admin');
+          setIsCustomerViewer(cu.role === 'customer_viewer');
+          setIsClient(true);
           setIsAdmin(true);
-          setIsSuperAdmin(profile.role === 'super_admin');
-          setIsClient(profile.role === 'client');
 
-          // If client role, fetch their assigned campaigns
-          if (profile.role === 'client') {
-            const { data: assignments } = await supabase
-              .from('campaign_user_assignments')
-              .select('campaign_id')
-              .eq('user_id', authUser.id);
+          const { data: campData } = await supabase
+            .from('campaigns')
+            .select('id')
+            .eq('customer_id', cu.customer_id);
 
-            setAssignedCampaignIds(
-              (assignments || []).map((a: { campaign_id: string }) => a.campaign_id)
-            );
-          } else {
+          setAssignedCampaignIds((campData || []).map((c: { id: string }) => c.id));
+          return true;
+        } else {
+          setCustomerUser(null);
+          setCustomerId(null);
+          setIsCustomerAdmin(false);
+          setIsCustomerViewer(false);
+          if (!isSuper) {
+            setIsClient(false);
             setAssignedCampaignIds([]);
           }
+        }
 
+        if (isSuper) {
+          setIsAdmin(true);
+          setIsClient(false);
+          setAssignedCampaignIds([]);
           return true;
         }
 
-        // 2. Fallback check is_admin_or_client RPC
+        // 3. Fallback check is_admin_or_client RPC
         const { data: hasAccess } = await supabase.rpc('is_admin_or_client');
         if (hasAccess) {
           setIsAdmin(true);
-          const { data: isSuper } = await supabase.rpc('is_super_admin');
-          setIsSuperAdmin(Boolean(isSuper));
-          setIsClient(!isSuper);
+          const { data: rpcIsSuper } = await supabase.rpc('is_super_admin');
+          setIsSuperAdmin(Boolean(rpcIsSuper));
+          setIsClient(!rpcIsSuper);
           return true;
         }
 
         setAdminProfile(null);
+        setCustomerUser(null);
+        setCustomerId(null);
         setIsAdmin(false);
         setIsSuperAdmin(false);
         setIsClient(false);
+        setIsCustomerAdmin(false);
+        setIsCustomerViewer(false);
         setAssignedCampaignIds([]);
         return false;
       } catch (err) {
         console.error('Error fetching admin permissions:', err);
         setAdminProfile(null);
+        setCustomerUser(null);
+        setCustomerId(null);
         setIsAdmin(false);
         setIsSuperAdmin(false);
         setIsClient(false);
+        setIsCustomerAdmin(false);
+        setIsCustomerViewer(false);
         setAssignedCampaignIds([]);
         return false;
       } finally {
@@ -195,9 +237,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setSession(null);
     setAdminProfile(null);
+    setCustomerUser(null);
+    setCustomerId(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
     setIsClient(false);
+    setIsCustomerAdmin(false);
+    setIsCustomerViewer(false);
     setAssignedCampaignIds([]);
   };
 
@@ -213,9 +259,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         session,
         adminProfile,
+        customerUser,
+        customerId,
         isAdmin,
         isSuperAdmin,
         isClient,
+        isCustomerAdmin,
+        isCustomerViewer,
         assignedCampaignIds,
         loading,
         signInWithPassword,

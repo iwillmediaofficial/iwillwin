@@ -1,10 +1,59 @@
 export type CampaignStatus = 'Draft' | 'Active' | 'Paused' | 'Completed';
 export type ScratchStatus = 'Pending' | 'Revealed';
 export type ClaimStatus = 'Unclaimed' | 'Claimed';
-export type AdminRole = 'super_admin' | 'client' | 'admin';
+export type AdminRole = 'super_admin' | 'client' | 'admin' | 'customer_admin' | 'customer_viewer';
+
+export interface Customer {
+  id: string;
+  company_name: string;
+  contact_person: string;
+  email: string;
+  phone: string | null;
+  logo_url: string | null;
+  address: string | null;
+  status: 'Active' | 'Inactive';
+  notes: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface CustomerWithStats extends Customer {
+  campaigns_count: number;
+  active_campaigns_count: number;
+  total_leads: number;
+  total_winners: number;
+}
+
+export interface CustomerUser {
+  id: string;
+  customer_id: string;
+  auth_user_id: string;
+  email: string;
+  role: 'customer_admin' | 'customer_viewer';
+  status: 'active' | 'inactive';
+  created_at: string;
+}
+
+export interface CustomerDetailData {
+  customer: Customer;
+  campaigns: (Campaign & {
+    total_leads: number;
+    total_winners: number;
+    remaining_prizes: number;
+  })[];
+  users: CustomerUser[];
+  stats: {
+    total_campaigns: number;
+    active_campaigns: number;
+    total_leads: number;
+    total_winners: number;
+    total_prizes_remaining: number;
+  };
+}
 
 export interface Campaign {
   id: string;
+  customer_id: string;
   name: string;
   slug: string;
   description: string | null;
@@ -30,6 +79,11 @@ export interface Campaign {
   cta_url: string;
   created_at: string;
   updated_at: string;
+  customer?: {
+    id?: string;
+    company_name: string;
+    logo_url: string | null;
+  };
 }
 
 export interface Prize {

@@ -17,6 +17,12 @@ const AdminLogin = lazy(() =>
 const DashboardPage = lazy(() =>
   import('@/pages/admin/DashboardPage').then((m) => ({ default: m.DashboardPage }))
 );
+const CustomersPage = lazy(() =>
+  import('@/pages/admin/CustomersPage').then((m) => ({ default: m.CustomersPage }))
+);
+const CustomerDetailPage = lazy(() =>
+  import('@/pages/admin/CustomerDetailPage').then((m) => ({ default: m.CustomerDetailPage }))
+);
 const CampaignsPage = lazy(() =>
   import('@/pages/admin/CampaignsPage').then((m) => ({ default: m.CampaignsPage }))
 );
@@ -25,9 +31,6 @@ const PrizesPage = lazy(() =>
 );
 const LeadsPage = lazy(() =>
   import('@/pages/admin/LeadsPage').then((m) => ({ default: m.LeadsPage }))
-);
-const UsersPage = lazy(() =>
-  import('@/pages/admin/UsersPage').then((m) => ({ default: m.UsersPage }))
 );
 const SettingsPage = lazy(() =>
   import('@/pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage }))
@@ -73,10 +76,12 @@ export function App() {
             }
           >
             <Route index element={<DashboardPage />} />
+            <Route path="customers" element={<CustomersPage />} />
+            <Route path="customers/:customerId" element={<CustomerDetailPage />} />
             <Route path="campaigns" element={<CampaignsPage />} />
             <Route path="prizes" element={<PrizesPage />} />
             <Route path="leads" element={<LeadsPage />} />
-            <Route path="users" element={<UsersPage />} />
+            <Route path="users" element={<Navigate to="/admin/customers" replace />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import type { Campaign, CampaignStatus } from '@/types/database';
+import type { Campaign, CampaignStatus, CustomerWithStats } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { uploadCampaignAsset } from '@/lib/supabase';
-import { Upload, Calendar, Settings2, MessageCircle, Sparkles } from 'lucide-react';
+import { uploadCampaignAsset, adminGetCustomers } from '@/lib/supabase';
+import { Upload, Calendar, Settings2, MessageCircle, Sparkles, Building2 } from 'lucide-react';
 
 interface CampaignModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (campaignData: Partial<Campaign>) => Promise<void>;
   initialData?: Campaign | null;
+  preselectedCustomerId?: string;
 }
 
 const DEFAULT_MESSAGE_TEMPLATE = `Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.`;
@@ -21,8 +22,11 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   onClose,
   onSave,
   initialData,
+  preselectedCustomerId,
 }) => {
+  const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
   const [formData, setFormData] = useState<Partial<Campaign>>({
+    customer_id: preselectedCustomerId || '',
     name: '',
     slug: '',
     description: '',
@@ -52,9 +56,20 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   useEffect(() => {
+    if (isOpen) {
+      adminGetCustomers().then((res) => {
+        if (res.success && res.data) {
+          setCustomers(res.data);
+        }
+      });
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
     if (initialData) {
       setFormData({
         ...initialData,
+        customer_id: initialData.customer_id || preselectedCustomerId || '',
         collect_dob: initialData.collect_dob ?? true,
         require_dob: initialData.require_dob ?? false,
         whatsapp_claim_number: initialData.whatsapp_claim_number || '',
@@ -69,6 +84,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       });
     } else {
       setFormData({
+        customer_id: preselectedCustomerId || '',
         name: '',
         slug: '',
         description: '',
@@ -94,7 +110,7 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
         cta_url: '',
       });
     }
-  }, [initialData, isOpen]);
+  }, [initialData, isOpen, preselectedCustomerId]);
 
   const handleNameChange = (nameVal: string) => {
     const autoSlug = nameVal
@@ -148,6 +164,10 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.customer_id) {
+      alert('Please select an assigned customer for this campaign.');
+      return;
+    }
     if (!formData.name?.trim() || !formData.slug?.trim()) {
       alert('Please fill campaign title and slug.');
       return;
@@ -177,6 +197,33 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       maxWidth="2xl"
     >
       <form onSubmit={handleSubmit} className="flex flex-col space-y-4 pt-2">
+        {/* Customer Assignment */}
+        <div className="flex flex-col space-y-1.5">
+          <label className="text-xs font-semibold text-slate-300 tracking-wider uppercase flex items-center space-x-1.5">
+            <Building2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>Assigned Customer *</span>
+          </label>
+          <select
+            value={formData.customer_id || ''}
+            onChange={(e) => setFormData((prev) => ({ ...prev, customer_id: e.target.value }))}
+            disabled={Boolean(preselectedCustomerId) || (Boolean(initialData) && Boolean(initialData?.customer_id))}
+            className="w-full bg-slate-900 text-slate-100 rounded-xl border border-slate-700 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400 disabled:opacity-75 disabled:cursor-not-allowed"
+            required
+          >
+            <option value="">Select a Customer...</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.company_name} ({c.contact_person})
+              </option>
+            ))}
+          </select>
+          {preselectedCustomerId && (
+            <p className="text-[11px] text-amber-400/80">
+              ✓ Pre-assigned to selected customer workspace
+            </p>
+          )}
+        </div>
+
         {/* Campaign Name & Slug */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input

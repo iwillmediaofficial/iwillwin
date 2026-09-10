@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, adminGetClients } from '@/lib/supabase';
+import { supabase, adminGetCustomers } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { CampaignModal } from '@/components/admin/CampaignModal';
-import { CampaignClientsModal } from '@/components/admin/CampaignClientsModal';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { formatDate } from '@/lib/utils';
-import type { Campaign, ClientUserItem } from '@/types/database';
+import type { Campaign, CustomerWithStats } from '@/types/database';
 import {
   Plus,
   Edit2,
@@ -20,7 +19,8 @@ import {
   Calendar,
   Gift,
   ShieldCheck,
-  UserCheck,
+  Building2,
+  Filter,
   Users,
 } from 'lucide-react';
 
@@ -29,16 +29,13 @@ export const CampaignsPage: React.FC = () => {
   const { isSuperAdmin } = useAuth();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [clients, setClients] = useState<ClientUserItem[]>([]);
+  const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
-
-  const [isClientsModalOpen, setIsClientsModalOpen] = useState(false);
-  const [campaignForClients, setCampaignForClients] = useState<Campaign | null>(null);
-
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const fetchCampaigns = async () => {
@@ -46,16 +43,16 @@ export const CampaignsPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('campaigns')
-        .select('*')
+        .select('*, customer:customers(id, company_name, logo_url)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
       setCampaigns((data as Campaign[]) || []);
 
       if (isSuperAdmin) {
-        const res = await adminGetClients();
+        const res = await adminGetCustomers();
         if (res.success && res.data) {
-          setClients(res.data);
+          setCustomers(res.data);
         }
       }
     } catch (err) {
@@ -124,14 +121,21 @@ export const CampaignsPage: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const filteredCampaigns = campaigns.filter((camp) => {
+    if (selectedCustomerId !== 'all' && camp.customer_id !== selectedCustomerId) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <div className="flex-1 flex flex-col min-w-0 pb-12">
       <AdminHeader
         title={isSuperAdmin ? 'Campaigns Management' : 'My Assigned Campaigns'}
         description={
           isSuperAdmin
-            ? 'Create, configure, assign clients, and monitor promotional Scratch & Win campaigns'
-            : 'Manage branding, WhatsApp claim, and settings for your assigned campaigns'
+            ? 'Manage customer campaigns, prize distribution, and brand redemption workflows'
+            : 'Manage branding, WhatsApp claim, and settings for your campaigns'
         }
         onOpenMobileMenu={openMobileMenu}
         actions={
@@ -161,26 +165,57 @@ export const CampaignsPage: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                  Client Scoped Workspace
+                  Customer Workspace
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  You have access to manage branding, prize configurations, and winner records for your assigned campaigns.
+                  You have access to manage branding, prize configurations, and winner records for your customer campaigns.
                 </p>
               </div>
             </div>
           </div>
         )}
 
+        {/* Filter Toolbar (Super Admin) */}
+        {isSuperAdmin && customers.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-900/60 p-4 rounded-2xl border border-slate-800">
+            <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <Filter className="w-3.5 h-3.5 text-amber-400" />
+                <span>Filter by Customer:</span>
+              </div>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 cursor-pointer"
+              >
+                <option value="all">All Customers ({campaigns.length} campaigns)</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.company_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="text-xs text-slate-400">
+              Showing <span className="text-white font-semibold">{filteredCampaigns.length}</span>{' '}
+              of <span className="text-white font-semibold">{campaigns.length}</span> campaigns
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="p-12 text-center text-slate-500 text-sm">Loading campaigns...</div>
-        ) : campaigns.length === 0 ? (
+        ) : filteredCampaigns.length === 0 ? (
           <div className="p-12 text-center bg-slate-900 border border-slate-800 rounded-2xl flex flex-col items-center">
             <Megaphone className="w-12 h-12 text-slate-600 mb-3" />
             <h3 className="text-base font-bold text-white mb-1">
-              {isSuperAdmin ? 'No campaigns created yet' : 'No campaigns assigned'}
+              {isSuperAdmin ? 'No campaigns found' : 'No campaigns assigned'}
             </h3>
             <p className="text-xs text-slate-400 mb-4 max-w-sm">
-              {isSuperAdmin
+              {selectedCustomerId !== 'all'
+                ? 'This customer does not have any campaigns yet.'
+                : isSuperAdmin
                 ? 'Create your first promotional campaign with custom branding and instant prizes.'
                 : 'Your account currently has no assigned campaigns. Please contact the administrator.'}
             </p>
@@ -200,145 +235,125 @@ export const CampaignsPage: React.FC = () => {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {campaigns.map((camp) => {
-              // Count assigned client accounts for this campaign
-              const assignedCount = clients.filter(
-                (client) =>
-                  client.role === 'client' &&
-                  client.assigned_campaigns.some((c) => c.id === camp.id)
-              ).length;
-
-              return (
-                <div
-                  key={camp.id}
-                  className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col justify-between transition-all"
-                >
-                  <div>
-                    {/* Top Bar: Status Badge + Actions */}
-                    <div className="flex items-center justify-between mb-3">
+            {filteredCampaigns.map((camp) => (
+              <div
+                key={camp.id}
+                className="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg flex flex-col justify-between transition-all group"
+              >
+                <div>
+                  {/* Top Bar: Status Badge + Customer Tag + Actions */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-2">
                       <Badge status={camp.status} />
-                      <div className="flex items-center space-x-1">
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => {
-                              setCampaignForClients(camp);
-                              setIsClientsModalOpen(true);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-sky-300 hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Assign Clients"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => {
-                            setEditingCampaign(camp);
-                            setIsModalOpen(true);
-                          }}
-                          className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors"
-                          title="Edit Campaign"
+                      {camp.customer && (
+                        <Link
+                          to={`/admin/customers/${camp.customer_id}`}
+                          className="flex items-center space-x-1 text-[11px] font-semibold text-amber-400 hover:text-amber-300 bg-amber-400/10 px-2 py-0.5 rounded-lg border border-amber-400/20 max-w-[140px] truncate transition-colors"
+                          title={`Customer: ${camp.customer.company_name}`}
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-
-                        {isSuperAdmin && (
-                          <button
-                            onClick={() => handleDeleteCampaign(camp.id, camp.name)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
-                            title="Delete Campaign"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
+                          <Building2 className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{camp.customer.company_name}</span>
+                        </Link>
+                      )}
                     </div>
 
-                    {/* Header Info */}
-                    <h3 className="text-lg font-bold text-white font-display line-clamp-1 mb-1">
-                      {camp.name}
-                    </h3>
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => {
+                          setEditingCampaign(camp);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition-colors"
+                        title="Edit Campaign"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
 
-                    {camp.description && (
-                      <p className="text-xs text-slate-400 line-clamp-2 mb-3">
-                        {camp.description}
-                      </p>
-                    )}
-
-                    {/* Timeline Details */}
-                    <div className="flex flex-col space-y-1.5 text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 mb-4">
-                      <div className="flex items-center space-x-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-amber-400" />
-                        <span>
-                          {formatDate(camp.start_date)} – {formatDate(camp.end_date)}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="text-slate-400">
-                          Slug: <span className="text-amber-300 font-mono">/c/{camp.slug}</span>
-                        </span>
-
-                        {isSuperAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCampaignForClients(camp);
-                              setIsClientsModalOpen(true);
-                            }}
-                            className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 flex items-center space-x-1 transition-colors"
-                          >
-                            <Users className="w-3 h-3" />
-                            <span>
-                              {assignedCount === 0
-                                ? 'Assign Clients'
-                                : `${assignedCount} Client${assignedCount > 1 ? 's' : ''}`}
-                            </span>
-                          </button>
-                        )}
-                      </div>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => handleDeleteCampaign(camp.id, camp.name)}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors"
+                          title="Delete Campaign"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* Bottom Actions */}
-                  <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => handleCopyLink(camp.slug, camp.id)}
-                      className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors"
-                    >
-                      {copiedId === camp.id ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied Link!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Link</span>
-                        </>
-                      )}
-                    </button>
+                  {/* Header Info */}
+                  <h3 className="text-lg font-bold text-white font-display line-clamp-1 mb-1">
+                    {camp.name}
+                  </h3>
 
-                    <a
-                      href={`/c/${camp.slug}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors"
-                      title="Launch Public Game"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
+                  {camp.description && (
+                    <p className="text-xs text-slate-400 line-clamp-2 mb-3">
+                      {camp.description}
+                    </p>
+                  )}
 
-                    <Link
-                      to={`/admin/prizes?campaign=${camp.id}`}
-                      className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                      title="Configure Prizes"
-                    >
-                      <Gift className="w-4 h-4" />
-                    </Link>
+                  {/* Timeline Details */}
+                  <div className="flex flex-col space-y-1.5 text-xs text-slate-400 bg-slate-950/60 p-3 rounded-xl border border-slate-800/80 mb-4">
+                    <div className="flex items-center space-x-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                      <span>
+                        {formatDate(camp.start_date)} – {formatDate(camp.end_date)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400">
+                        Slug: <span className="text-amber-300 font-mono">/c/{camp.slug}</span>
+                      </span>
+                      <Link
+                        to={`/admin/leads?campaign=${camp.id}`}
+                        className="text-[10px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/20 flex items-center space-x-1 transition-colors"
+                      >
+                        <Users className="w-3 h-3" />
+                        <span>View Leads</span>
+                      </Link>
+                    </div>
                   </div>
                 </div>
-              );
-            })}
+
+                {/* Bottom Actions */}
+                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => handleCopyLink(camp.slug, camp.id)}
+                    className="flex-1 flex items-center justify-center space-x-1.5 py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors"
+                  >
+                    {copiedId === camp.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span className="text-emerald-400">Copied Link!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Link</span>
+                      </>
+                    )}
+                  </button>
+
+                  <a
+                    href={`/c/${camp.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition-colors"
+                    title="Launch Public Game"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                  </a>
+
+                  <Link
+                    to={`/admin/prizes?campaign=${camp.id}`}
+                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                    title="Configure Prizes"
+                  >
+                    <Gift className="w-4 h-4" />
+                  </Link>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
@@ -348,15 +363,9 @@ export const CampaignsPage: React.FC = () => {
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveCampaign}
         initialData={editingCampaign}
-      />
-
-      <CampaignClientsModal
-        isOpen={isClientsModalOpen}
-        onClose={() => setIsClientsModalOpen(false)}
-        onSuccess={fetchCampaigns}
-        campaign={campaignForClients}
-        clients={clients}
+        preselectedCustomerId={selectedCustomerId !== 'all' ? selectedCustomerId : undefined}
       />
     </div>
   );
 };
+
