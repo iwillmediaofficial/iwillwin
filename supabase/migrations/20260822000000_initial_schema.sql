@@ -533,7 +533,7 @@ DECLARE
     v_clean_email TEXT;
     v_clean_dob TEXT;
     v_claim_code TEXT;
-    v_existing_id UUID;
+    v_existing RECORD;
     v_candidate RECORD;
     v_total_weight INTEGER := 0;
     v_random_weight INTEGER;
@@ -624,29 +624,89 @@ BEGIN
         RETURN jsonb_build_object('success', false, 'code', 'DOB_REQUIRED', 'message', 'Please select your Date of Birth.');
     END IF;
 
-    -- 3. Duplicate checks without leaking claim codes or prizes
+    -- 3. Duplicate checks: If user already participated, return their allocated winning gift & claim code
     IF v_campaign.unique_mobile AND v_clean_mobile IS NOT NULL THEN
-        IF EXISTS (
-            SELECT 1 FROM public.leads
-            WHERE campaign_id = v_campaign.id AND mobile = v_clean_mobile
-        ) THEN
+        SELECT l.id, l.name, l.mobile, l.claim_code, l.scratch_status,
+               p.id as prize_id, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
+        INTO v_existing
+        FROM public.leads l
+        LEFT JOIN public.prizes p ON l.prize_id = p.id
+        WHERE l.campaign_id = v_campaign.id AND l.mobile = v_clean_mobile
+        ORDER BY l.participated_at DESC
+        LIMIT 1;
+
+        IF v_existing.id IS NOT NULL THEN
             RETURN jsonb_build_object(
                 'success', false,
                 'code', 'DUPLICATE_MOBILE',
-                'message', 'This mobile number has already participated in this campaign.'
+                'message', 'You have already participated in this campaign!',
+                'lead_id', v_existing.id,
+                'claim_code', v_existing.claim_code,
+                'scratch_status', v_existing.scratch_status,
+                'player_mobile', v_existing.mobile,
+                'player_name', v_existing.name,
+                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
+                'scratch_title', COALESCE(v_campaign.scratch_title, 'Scratch to Reveal Your Prize'),
+                'success_message', COALESCE(v_campaign.success_message, 'Congratulations on your win!'),
+                'result_message', COALESCE(v_campaign.result_message, 'Show this scratch card to claim your reward.'),
+                'cta_text', COALESCE(v_campaign.cta_text, 'Claim on WhatsApp'),
+                'cta_url', COALESCE(v_campaign.cta_url, ''),
+                'prize', CASE WHEN v_existing.prize_id IS NOT NULL THEN
+                    jsonb_build_object(
+                        'id', v_existing.prize_id,
+                        'name', v_existing.prize_name,
+                        'description', v_existing.prize_desc,
+                        'image_url', v_existing.prize_img
+                    )
+                ELSE jsonb_build_object(
+                    'id', 'none',
+                    'name', 'Exclusive Reward',
+                    'description', 'Show your verification code to claim your reward.',
+                    'image_url', NULL
+                ) END
             );
         END IF;
     END IF;
 
     IF v_campaign.unique_email AND v_clean_email IS NOT NULL THEN
-        IF EXISTS (
-            SELECT 1 FROM public.leads
-            WHERE campaign_id = v_campaign.id AND email = v_clean_email
-        ) THEN
+        SELECT l.id, l.name, l.mobile, l.claim_code, l.scratch_status,
+               p.id as prize_id, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
+        INTO v_existing
+        FROM public.leads l
+        LEFT JOIN public.prizes p ON l.prize_id = p.id
+        WHERE l.campaign_id = v_campaign.id AND l.email = v_clean_email
+        ORDER BY l.participated_at DESC
+        LIMIT 1;
+
+        IF v_existing.id IS NOT NULL THEN
             RETURN jsonb_build_object(
                 'success', false,
                 'code', 'DUPLICATE_EMAIL',
-                'message', 'This email address has already participated in this campaign.'
+                'message', 'You have already participated in this campaign!',
+                'lead_id', v_existing.id,
+                'claim_code', v_existing.claim_code,
+                'scratch_status', v_existing.scratch_status,
+                'player_mobile', v_existing.mobile,
+                'player_name', v_existing.name,
+                'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
+                'scratch_title', COALESCE(v_campaign.scratch_title, 'Scratch to Reveal Your Prize'),
+                'success_message', COALESCE(v_campaign.success_message, 'Congratulations on your win!'),
+                'result_message', COALESCE(v_campaign.result_message, 'Show this scratch card to claim your reward.'),
+                'cta_text', COALESCE(v_campaign.cta_text, 'Claim on WhatsApp'),
+                'cta_url', COALESCE(v_campaign.cta_url, ''),
+                'prize', CASE WHEN v_existing.prize_id IS NOT NULL THEN
+                    jsonb_build_object(
+                        'id', v_existing.prize_id,
+                        'name', v_existing.prize_name,
+                        'description', v_existing.prize_desc,
+                        'image_url', v_existing.prize_img
+                    )
+                ELSE jsonb_build_object(
+                    'id', 'none',
+                    'name', 'Exclusive Reward',
+                    'description', 'Show your verification code to claim your reward.',
+                    'image_url', NULL
+                ) END
             );
         END IF;
     END IF;
@@ -727,10 +787,46 @@ BEGIN
             WHERE id = v_selected_prize_id;
         END IF;
 
+        SELECT l.id, l.name, l.mobile, l.claim_code, l.scratch_status,
+               p.id as prize_id, p.name as prize_name, p.description as prize_desc, p.image_url as prize_img
+        INTO v_existing
+        FROM public.leads l
+        LEFT JOIN public.prizes p ON l.prize_id = p.id
+        WHERE l.campaign_id = v_campaign.id AND (
+            (v_clean_mobile IS NOT NULL AND l.mobile = v_clean_mobile) OR
+            (v_clean_email IS NOT NULL AND l.email = v_clean_email)
+        )
+        ORDER BY l.participated_at DESC
+        LIMIT 1;
+
         RETURN jsonb_build_object(
             'success', false,
             'code', 'DUPLICATE_MOBILE',
-            'message', 'This mobile number has already participated in this campaign.'
+            'message', 'You have already participated in this campaign!',
+            'lead_id', v_existing.id,
+            'claim_code', v_existing.claim_code,
+            'scratch_status', v_existing.scratch_status,
+            'player_mobile', v_existing.mobile,
+            'player_name', v_existing.name,
+            'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
+            'scratch_title', COALESCE(v_campaign.scratch_title, 'Scratch to Reveal Your Prize'),
+            'success_message', COALESCE(v_campaign.success_message, 'Congratulations on your win!'),
+            'result_message', COALESCE(v_campaign.result_message, 'Show this scratch card to claim your reward.'),
+            'cta_text', COALESCE(v_campaign.cta_text, 'Claim on WhatsApp'),
+            'cta_url', COALESCE(v_campaign.cta_url, ''),
+            'prize', CASE WHEN v_existing.prize_id IS NOT NULL THEN
+                jsonb_build_object(
+                    'id', v_existing.prize_id,
+                    'name', v_existing.prize_name,
+                    'description', v_existing.prize_desc,
+                    'image_url', v_existing.prize_img
+                )
+            ELSE jsonb_build_object(
+                'id', 'none',
+                'name', 'Exclusive Reward',
+                'description', 'Show your verification code to claim your reward.',
+                'image_url', NULL
+            ) END
         );
     END;
 
@@ -754,6 +850,7 @@ BEGIN
         'lead_id', v_lead_id,
         'claim_code', v_claim_code,
         'player_mobile', v_clean_mobile,
+        'player_name', v_clean_name,
         'whatsapp_claim_number', v_campaign.whatsapp_claim_number,
         'scratch_title', COALESCE(v_campaign.scratch_title, 'Scratch to Reveal Your Prize'),
         'success_message', COALESCE(v_campaign.success_message, 'Congratulations on your win!'),

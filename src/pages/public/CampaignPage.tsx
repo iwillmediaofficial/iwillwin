@@ -137,21 +137,20 @@ export const CampaignPage: React.FC = () => {
         setPhase('scratch');
       });
     } else if (result.code === 'DUPLICATE_MOBILE' || result.code === 'DUPLICATE_EMAIL') {
-      // User has already played
-      if (result.lead_id && result.prize) {
-        setLeadId(result.lead_id);
+      // User has already played: display their allocated winning gift and details
+      if (result.prize) {
+        setLeadId(result.lead_id || null);
         setClaimCode(result.claim_code);
         setPlayerMobile(result.player_mobile || formData.mobile);
+        if (result.player_name) setPlayerName(result.player_name);
         setAllocatedPrize(result.prize);
         setIsDuplicate(true);
 
-        if (result.scratch_status === 'Revealed') {
-          setPhase('revealed');
-        } else {
-          animateTransitionToScratch(formWrapperRef.current, scratchWrapperRef.current, () => {
-            setPhase('scratch');
-          });
+        if (result.lead_id && result.scratch_status !== 'Revealed') {
+          markScratchRevealed(result.lead_id);
         }
+
+        setPhase('revealed');
       } else {
         setSubmissionError(result.message || 'You have already participated in this campaign.');
       }

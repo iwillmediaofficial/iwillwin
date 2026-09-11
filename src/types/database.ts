@@ -183,6 +183,7 @@ export interface ParticipationResponse {
   lead_id?: string;
   claim_code?: string;
   player_mobile?: string;
+  player_name?: string;
   whatsapp_claim_number?: string | null;
   prize?: AllocatedPrizeData | null;
   scratch_title?: string;

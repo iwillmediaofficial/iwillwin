@@ -132,19 +132,26 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
 
       {/* Duplicate notice if applicable */}
       {isDuplicate && (
-        <div className="w-full mb-4 bg-amber-50 border border-amber-300 rounded-xl p-2.5 text-xs text-amber-800 flex items-center justify-center space-x-1.5">
-          <CheckCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <span>You have already scratched your card for this campaign.</span>
+        <div className="w-full mb-4 bg-amber-500/10 border-2 border-amber-400/80 rounded-2xl p-4 text-slate-800 flex flex-col items-center justify-center text-center shadow-sm">
+          <div className="flex items-center space-x-2 text-amber-800 font-black text-sm uppercase tracking-wide">
+            <CheckCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+            <span>Already Participated</span>
+          </div>
+          <p className="text-xs text-slate-600 mt-1 font-medium">
+            You have already participated in this campaign. Here is your winning gift and claim details!
+          </p>
         </div>
       )}
 
       {/* Hero Badge */}
       <div className="inline-flex items-center space-x-1.5 px-4 py-1.5 rounded-full bg-[#fef3c7] border border-[#fde68a] text-[#92400e] text-xs font-black tracking-wider uppercase mb-2 shadow-sm">
         <Sparkles className="w-4 h-4 text-amber-500 animate-spin-slow" />
-        <span>{successMessage}</span>
+        <span>{isDuplicate ? '🎁 YOUR WINNING GIFT' : successMessage}</span>
       </div>
 
-      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">YOU WON</p>
+      <p className="text-xs uppercase tracking-widest text-slate-400 font-bold">
+        {isDuplicate ? 'ALLOCATED REWARD' : 'YOU WON'}
+      </p>
 
       {/* Prize Box with GSAP Animation */}
       <div
@@ -212,7 +219,9 @@ export const PrizeRevealCard: React.FC<PrizeRevealCardProps> = ({
 
       {/* Result instructions */}
       <p className="text-xs text-slate-500 max-w-xs mb-4 font-normal leading-relaxed">
-        {resultMessage}
+        {isDuplicate
+          ? 'Show your winning verification code or connect on WhatsApp below to claim your reward.'
+          : resultMessage}
       </p>
 
       {/* Action Buttons */}
