@@ -17,24 +17,64 @@ interface CampaignModalProps {
 
 const DEFAULT_MESSAGE_TEMPLATE = `Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.`;
 
-export const CampaignModal: React.FC<CampaignModalProps> = ({
-  isOpen,
-  onClose,
-  onSave,
-  initialData,
-  preselectedCustomerId,
-}) => {
-  const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
-  const [formData, setFormData] = useState<Partial<Campaign>>({
-    customer_id: preselectedCustomerId || '',
+const safeFormatDate = (dateVal?: string | null, fallbackOffsetDays = 0) => {
+  if (!dateVal) {
+    const d = new Date(Date.now() + fallbackOffsetDays * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 16);
+  }
+  try {
+    const parsed = new Date(dateVal);
+    if (isNaN(parsed.getTime())) {
+      const d = new Date(Date.now() + fallbackOffsetDays * 24 * 60 * 60 * 1000);
+      return d.toISOString().slice(0, 16);
+    }
+    return parsed.toISOString().slice(0, 16);
+  } catch {
+    const d = new Date(Date.now() + fallbackOffsetDays * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 16);
+  }
+};
+
+const getInitialFormData = (data?: Campaign | null, custId?: string): Partial<Campaign> => {
+  if (data) {
+    return {
+      ...data,
+      customer_id: data.customer_id || custId || '',
+      name: data.name || '',
+      slug: data.slug || '',
+      description: data.description || '',
+      logo_url: data.logo_url || '',
+      banner_url: data.banner_url || '',
+      instagram_url: data.instagram_url || 'https://instagram.com',
+      start_date: safeFormatDate(data.start_date, 0),
+      end_date: safeFormatDate(data.end_date, 30),
+      status: (data.status || 'Active') as CampaignStatus,
+      require_name: data.require_name ?? true,
+      require_mobile: data.require_mobile ?? true,
+      require_email: data.require_email ?? false,
+      collect_dob: data.collect_dob ?? true,
+      require_dob: data.require_dob ?? false,
+      whatsapp_claim_number: data.whatsapp_claim_number || '',
+      whatsapp_message_template: data.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE,
+      unique_mobile: data.unique_mobile ?? true,
+      unique_email: data.unique_email ?? false,
+      scratch_title: data.scratch_title || 'Scratch to Reveal Your Exclusive Reward',
+      success_message: data.success_message || '🎉 CONGRATULATIONS! You unlocked an exclusive prize!',
+      result_message: data.result_message || 'Show this card or click the button below to redeem with our team.',
+      cta_text: data.cta_text || 'Claim on WhatsApp',
+      cta_url: data.cta_url || '',
+    };
+  }
+  return {
+    customer_id: custId || '',
     name: '',
     slug: '',
     description: '',
     logo_url: '',
     banner_url: '',
     instagram_url: 'https://instagram.com',
-    start_date: new Date().toISOString().slice(0, 16),
-    end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
+    start_date: safeFormatDate(null, 0),
+    end_date: safeFormatDate(null, 30),
     status: 'Active' as CampaignStatus,
     require_name: true,
     require_mobile: true,
@@ -50,67 +90,34 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
     result_message: 'Show this card or click the button below to redeem with our team.',
     cta_text: 'Claim on WhatsApp',
     cta_url: '',
-  });
+  };
+};
+
+export const CampaignModal: React.FC<CampaignModalProps> = ({
+  isOpen,
+  onClose,
+  onSave,
+  initialData,
+  preselectedCustomerId,
+}) => {
+  const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
+  const [formData, setFormData] = useState<Partial<Campaign>>(() =>
+    getInitialFormData(initialData, preselectedCustomerId)
+  );
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      setFormData(getInitialFormData(initialData, preselectedCustomerId));
       adminGetCustomers().then((res) => {
         if (res.success && res.data) {
           setCustomers(res.data);
         }
       });
     }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (initialData) {
-      setFormData({
-        ...initialData,
-        customer_id: initialData.customer_id || preselectedCustomerId || '',
-        collect_dob: initialData.collect_dob ?? true,
-        require_dob: initialData.require_dob ?? false,
-        whatsapp_claim_number: initialData.whatsapp_claim_number || '',
-        whatsapp_message_template:
-          initialData.whatsapp_message_template || DEFAULT_MESSAGE_TEMPLATE,
-        start_date: initialData.start_date
-          ? new Date(initialData.start_date).toISOString().slice(0, 16)
-          : new Date().toISOString().slice(0, 16),
-        end_date: initialData.end_date
-          ? new Date(initialData.end_date).toISOString().slice(0, 16)
-          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-      });
-    } else {
-      setFormData({
-        customer_id: preselectedCustomerId || '',
-        name: '',
-        slug: '',
-        description: '',
-        logo_url: '',
-        banner_url: '',
-        instagram_url: 'https://instagram.com',
-        start_date: new Date().toISOString().slice(0, 16),
-        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16),
-        status: 'Active' as CampaignStatus,
-        require_name: true,
-        require_mobile: true,
-        require_email: false,
-        collect_dob: true,
-        require_dob: false,
-        whatsapp_claim_number: '',
-        whatsapp_message_template: DEFAULT_MESSAGE_TEMPLATE,
-        unique_mobile: true,
-        unique_email: false,
-        scratch_title: 'Scratch to Reveal Your Exclusive Reward',
-        success_message: '🎉 CONGRATULATIONS! You unlocked an exclusive prize!',
-        result_message: 'Show this card or click the button below to redeem with our team.',
-        cta_text: 'Claim on WhatsApp',
-        cta_url: '',
-      });
-    }
-  }, [initialData, isOpen, preselectedCustomerId]);
+  }, [isOpen, initialData, preselectedCustomerId]);
 
   const handleNameChange = (nameVal: string) => {
     const autoSlug = nameVal

@@ -296,18 +296,7 @@ BEGIN
     -- Customer Campaigns with counts
     SELECT COALESCE(
         jsonb_agg(
-            jsonb_build_object(
-                'id', camp.id,
-                'customer_id', camp.customer_id,
-                'name', camp.name,
-                'slug', camp.slug,
-                'description', camp.description,
-                'status', camp.status,
-                'start_date', camp.start_date,
-                'end_date', camp.end_date,
-                'logo_url', camp.logo_url,
-                'banner_url', camp.banner_url,
-                'created_at', camp.created_at,
+            to_jsonb(camp) || jsonb_build_object(
                 'total_leads', COALESCE(cs.total_leads, 0),
                 'total_winners', COALESCE(cs.total_winners, 0),
                 'remaining_prizes', COALESCE(cs.remaining_prizes, 0)

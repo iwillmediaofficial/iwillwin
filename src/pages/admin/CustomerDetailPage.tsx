@@ -854,7 +854,9 @@ export const CustomerDetailPage: React.FC = () => {
                         <Badge status={camp.status} />
                         <div className="flex items-center space-x-1">
                           <button
-                            onClick={() => {
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingCampaign(camp);
                               setIsCampaignModalOpen(true);
                             }}
@@ -1651,7 +1653,10 @@ export const CustomerDetailPage: React.FC = () => {
       {/* Campaign Modal */}
       <CampaignModal
         isOpen={isCampaignModalOpen}
-        onClose={() => setIsCampaignModalOpen(false)}
+        onClose={() => {
+          setIsCampaignModalOpen(false);
+          setEditingCampaign(null);
+        }}
         onSave={handleSaveCampaign}
         initialData={editingCampaign}
         preselectedCustomerId={customerId}

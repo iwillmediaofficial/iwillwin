@@ -268,7 +268,9 @@ export const CampaignsPage: React.FC = () => {
 
                     <div className="flex items-center space-x-1">
                       <button
-                        onClick={() => {
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setEditingCampaign(camp);
                           setIsModalOpen(true);
                         }}
@@ -369,7 +371,10 @@ export const CampaignsPage: React.FC = () => {
 
       <CampaignModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingCampaign(null);
+        }}
         onSave={handleSaveCampaign}
         initialData={editingCampaign}
         preselectedCustomerId={selectedCustomerId !== 'all' ? selectedCustomerId : undefined}
