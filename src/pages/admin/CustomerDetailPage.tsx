@@ -1660,6 +1660,7 @@ export const CustomerDetailPage: React.FC = () => {
         onSave={handleSaveCampaign}
         initialData={editingCampaign}
         preselectedCustomerId={customerId}
+        customersList={customer ? [customer as any] : undefined}
       />
 
       {/* Customer User Modal */}

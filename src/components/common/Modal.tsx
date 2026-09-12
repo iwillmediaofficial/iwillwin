@@ -53,42 +53,40 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-hidden">
       {/* Backdrop */}
       <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-950/80 transition-opacity duration-150"
       />
 
-      <div className="flex min-h-full items-center justify-center p-4 sm:p-6">
-        {/* Dialog Box */}
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className={cn(
-            'relative w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-7 shadow-2xl z-10 my-auto text-left max-h-[92vh] flex flex-col',
-            maxWidthClasses[maxWidth],
-            className
-          )}
+      {/* Dialog Box */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          'relative w-full bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-7 shadow-2xl z-10 text-left max-h-[90vh] flex flex-col',
+          maxWidthClasses[maxWidth],
+          className
+        )}
+      >
+        {/* Close Button */}
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors z-20"
+          aria-label="Close dialog"
         >
-          {/* Close Button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors z-20"
-            aria-label="Close dialog"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <X className="w-5 h-5" />
+        </button>
 
-          {title && (
-            <div className="mb-4 pr-8 flex-shrink-0">
-              <h3 className="text-xl font-bold text-white font-display">{title}</h3>
-              {description && <p className="text-sm text-slate-400 mt-1">{description}</p>}
-            </div>
-          )}
+        {title && (
+          <div className="mb-4 pr-8 flex-shrink-0">
+            <h3 className="text-xl font-bold text-white font-display">{title}</h3>
+            {description && <p className="text-sm text-slate-400 mt-1">{description}</p>}
+          </div>
+        )}
 
-          <div className="flex-1 overflow-y-auto min-h-0 pr-1">{children}</div>
-        </div>
+        <div className="flex-1 overflow-y-auto min-h-0 pr-1">{children}</div>
       </div>
     </div>
   );

@@ -378,6 +378,7 @@ export const CampaignsPage: React.FC = () => {
         onSave={handleSaveCampaign}
         initialData={editingCampaign}
         preselectedCustomerId={selectedCustomerId !== 'all' ? selectedCustomerId : undefined}
+        customersList={customers}
       />
     </div>
   );

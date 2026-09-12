@@ -453,6 +453,7 @@ export const CustomersPage: React.FC = () => {
         onClose={() => setIsCampaignModalOpen(false)}
         onSave={handleSaveCampaign}
         preselectedCustomerId={campaignForCustomerId}
+        customersList={customers}
       />
     </div>
   );

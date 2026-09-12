@@ -13,6 +13,7 @@ interface CampaignModalProps {
   onSave: (campaignData: Partial<Campaign>) => Promise<void>;
   initialData?: Campaign | null;
   preselectedCustomerId?: string;
+  customersList?: CustomerWithStats[];
 }
 
 const DEFAULT_MESSAGE_TEMPLATE = `Hi! I won *{prize}* on IWILLWIN! 🎉\nWinning Verification Code: *{code}*\nRegistered Mobile: *{mobile}*\nPlease guide me on how to claim my reward.`;
@@ -99,8 +100,9 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   onSave,
   initialData,
   preselectedCustomerId,
+  customersList,
 }) => {
-  const [customers, setCustomers] = useState<CustomerWithStats[]>([]);
+  const [customers, setCustomers] = useState<CustomerWithStats[]>(() => customersList || []);
   const [formData, setFormData] = useState<Partial<Campaign>>(() =>
     getInitialFormData(initialData, preselectedCustomerId)
   );
@@ -108,16 +110,27 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
+  const prevInitialIdRef = React.useRef<string | undefined>(undefined);
+  const prevIsOpenRef = React.useRef(false);
+
   useEffect(() => {
     if (isOpen) {
-      setFormData(getInitialFormData(initialData, preselectedCustomerId));
-      adminGetCustomers().then((res) => {
-        if (res.success && res.data) {
-          setCustomers(res.data);
-        }
-      });
+      if (!prevIsOpenRef.current || initialData?.id !== prevInitialIdRef.current) {
+        setFormData(getInitialFormData(initialData, preselectedCustomerId));
+        prevInitialIdRef.current = initialData?.id;
+      }
+      if (customersList && customersList.length > 0) {
+        setCustomers(customersList);
+      } else {
+        adminGetCustomers().then((res) => {
+          if (res.success && res.data) {
+            setCustomers(res.data);
+          }
+        });
+      }
     }
-  }, [isOpen, initialData, preselectedCustomerId]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, initialData?.id, preselectedCustomerId, customersList]);
 
   const handleNameChange = (nameVal: string) => {
     const autoSlug = nameVal
