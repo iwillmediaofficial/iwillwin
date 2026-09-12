@@ -9,6 +9,7 @@ import {
   adminDeleteCustomerUser,
   uploadCampaignAsset,
   updateLeadClaimStatus,
+  sanitizeCampaignPayload,
   supabase,
 } from '@/lib/supabase';
 import { CampaignModal } from '@/components/admin/CampaignModal';
@@ -255,15 +256,16 @@ export const CustomerDetailPage: React.FC = () => {
   // Handle Save Campaign (Create or Update)
   const handleSaveCampaign = async (campaignData: Partial<Campaign>) => {
     if (!customerId) return;
+    const cleanData = sanitizeCampaignPayload(campaignData);
     if (editingCampaign) {
       const { error } = await supabase
         .from('campaigns')
-        .update(campaignData)
+        .update(cleanData)
         .eq('id', editingCampaign.id);
       if (error) throw error;
     } else {
       const { error } = await supabase.from('campaigns').insert({
-        ...campaignData,
+        ...cleanData,
         customer_id: customerId,
       });
       if (error) throw error;

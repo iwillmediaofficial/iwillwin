@@ -6,6 +6,7 @@ import {
   adminCreateCustomer,
   adminUpdateCustomer,
   adminDeleteCustomer,
+  sanitizeCampaignPayload,
   supabase,
 } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
@@ -115,7 +116,8 @@ export const CustomersPage: React.FC = () => {
   };
 
   const handleSaveCampaign = async (campaignData: Partial<Campaign>) => {
-    const { error } = await supabase.from('campaigns').insert(campaignData);
+    const cleanData = sanitizeCampaignPayload(campaignData);
+    const { error } = await supabase.from('campaigns').insert(cleanData);
     if (error) throw error;
     await fetchCustomers();
   };

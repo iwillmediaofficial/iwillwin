@@ -463,3 +463,46 @@ export async function getAdminDashboardStats() {
     totalPrizesAllocated: totalAllocated,
   };
 }
+
+/**
+ * Sanitizes campaign payload before inserting or updating in Supabase.
+ * Strips computed/synthetic/relational fields (such as remaining_prizes, total_leads,
+ * total_winners, customer object, id, created_at, updated_at).
+ */
+export function sanitizeCampaignPayload<T extends Record<string, any>>(data: T): Partial<Campaign> {
+  const allowedColumns = [
+    'customer_id',
+    'name',
+    'slug',
+    'description',
+    'logo_url',
+    'banner_url',
+    'instagram_url',
+    'start_date',
+    'end_date',
+    'status',
+    'require_name',
+    'require_mobile',
+    'require_email',
+    'collect_dob',
+    'require_dob',
+    'whatsapp_claim_number',
+    'whatsapp_message_template',
+    'unique_mobile',
+    'unique_email',
+    'success_message',
+    'scratch_title',
+    'result_message',
+    'cta_text',
+    'cta_url',
+  ];
+
+  const sanitized: Record<string, any> = {};
+  for (const col of allowedColumns) {
+    if (col in data && data[col] !== undefined) {
+      sanitized[col] = data[col];
+    }
+  }
+  return sanitized as Partial<Campaign>;
+}
+

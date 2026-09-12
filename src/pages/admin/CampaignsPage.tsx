@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { supabase, adminGetCustomers } from '@/lib/supabase';
+import { supabase, adminGetCustomers, sanitizeCampaignPayload } from '@/lib/supabase';
 import { AdminHeader } from '@/components/admin/AdminHeader';
 import { CampaignModal } from '@/components/admin/CampaignModal';
 import { Badge } from '@/components/common/Badge';
@@ -67,10 +67,11 @@ export const CampaignsPage: React.FC = () => {
   }, [isSuperAdmin]);
 
   const handleSaveCampaign = async (campaignData: Partial<Campaign>) => {
+    const cleanData = sanitizeCampaignPayload(campaignData);
     if (editingCampaign) {
       const { error } = await supabase
         .from('campaigns')
-        .update(campaignData)
+        .update(cleanData)
         .eq('id', editingCampaign.id);
 
       if (error) throw error;
@@ -79,7 +80,7 @@ export const CampaignsPage: React.FC = () => {
         alert('Only Super Administrators can create new campaigns.');
         return;
       }
-      const { error } = await supabase.from('campaigns').insert(campaignData);
+      const { error } = await supabase.from('campaigns').insert(cleanData);
       if (error) throw error;
     }
     await fetchCampaigns();

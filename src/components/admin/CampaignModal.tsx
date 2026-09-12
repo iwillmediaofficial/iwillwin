@@ -4,7 +4,7 @@ import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { uploadCampaignAsset, adminGetCustomers } from '@/lib/supabase';
+import { uploadCampaignAsset, adminGetCustomers, sanitizeCampaignPayload } from '@/lib/supabase';
 import { Upload, Calendar, Settings2, MessageCircle, Sparkles, Building2 } from 'lucide-react';
 
 interface CampaignModalProps {
@@ -175,11 +175,12 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
     setIsSaving(true);
     try {
-      await onSave({
+      const sanitizedPayload = sanitizeCampaignPayload({
         ...formData,
         start_date: new Date(formData.start_date!).toISOString(),
         end_date: new Date(formData.end_date!).toISOString(),
       });
+      await onSave(sanitizedPayload);
       onClose();
     } catch (err: any) {
       alert(`Error saving campaign: ${err.message}`);
