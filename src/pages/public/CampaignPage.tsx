@@ -6,6 +6,7 @@ import { CampaignHero } from '@/components/public/CampaignHero';
 import { ParticipantForm } from '@/components/public/ParticipantForm';
 import { ScratchCard } from '@/components/public/ScratchCard';
 import { PrizeRevealCard } from '@/components/public/PrizeRevealCard';
+import { CampaignExpiredView } from '@/components/public/CampaignExpiredView';
 import { CelebrationDecorations } from '@/components/public/CelebrationDecorations';
 import { animatePageLoad, animateTransitionToScratch } from '@/lib/gsap';
 import { Sparkles, AlertTriangle, ShieldCheck } from 'lucide-react';
@@ -198,6 +199,19 @@ export const CampaignPage: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // Campaign Expired State
+  const isExpired = Boolean(
+    campaign && (
+      campaign.is_expired ||
+      campaign.status === 'Completed' ||
+      (campaign.end_date && new Date(campaign.end_date) < new Date())
+    )
+  );
+
+  if (isExpired) {
+    return <CampaignExpiredView campaign={campaign} />;
   }
 
   return (

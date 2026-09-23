@@ -84,6 +84,10 @@ export interface Campaign {
     company_name: string;
     logo_url: string | null;
   };
+  customer_name?: string;
+  customer_logo_url?: string | null;
+  is_expired?: boolean;
+  is_upcoming?: boolean;
 }
 
 export interface Prize {

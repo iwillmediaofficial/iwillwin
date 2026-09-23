@@ -33,6 +33,8 @@ export const Badge: React.FC<BadgeProps> = ({ status, variant, children, classNa
         computedVariant = 'danger';
         break;
       case 'Completed':
+      case 'Expired':
+      case 'Concluded':
       case 'admin':
       case 'super_admin':
         computedVariant = 'gold';

@@ -851,7 +851,7 @@ export const CustomerDetailPage: React.FC = () => {
                     <div>
                       {/* Top Bar */}
                       <div className="flex items-center justify-between mb-3">
-                        <Badge status={camp.status} />
+                        <Badge status={(camp.status === 'Active' && camp.end_date && new Date(camp.end_date) < new Date()) ? 'Completed' : camp.status} />
                         <div className="flex items-center space-x-1">
                           <button
                             type="button"

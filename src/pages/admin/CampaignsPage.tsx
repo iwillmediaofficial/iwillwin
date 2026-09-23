@@ -245,7 +245,7 @@ export const CampaignsPage: React.FC = () => {
                   {/* Top Bar: Status Badge + Customer Tag + Actions */}
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center space-x-2">
-                      <Badge status={camp.status} />
+                      <Badge status={(camp.status === 'Active' && camp.end_date && new Date(camp.end_date) < new Date()) ? 'Completed' : camp.status} />
                       {camp.customer && (
                         <Link
                           to={`/admin/customers/${camp.customer_id}`}
