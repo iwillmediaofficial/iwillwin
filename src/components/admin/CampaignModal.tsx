@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import type { Campaign, CampaignStatus, CustomerWithStats } from '@/types/database';
+import type { Campaign, CampaignStatus, CustomerWithStats, CustomerSubscription } from '@/types/database';
 import { Modal } from '@/components/common/Modal';
 import { Input } from '@/components/common/Input';
 import { Button } from '@/components/common/Button';
 import { InstagramIcon } from '@/components/common/InstagramIcon';
-import { uploadCampaignAsset, adminGetCustomers, sanitizeCampaignPayload } from '@/lib/supabase';
-import { Upload, Calendar, Settings2, MessageCircle, Sparkles, Building2 } from 'lucide-react';
+import { uploadCampaignAsset, adminGetCustomers, sanitizeCampaignPayload, getCustomerActiveSubscription } from '@/lib/supabase';
+import { formatDate } from '@/lib/utils';
+import { Upload, Calendar, Settings2, MessageCircle, Sparkles, Building2, AlertTriangle } from 'lucide-react';
 
 interface CampaignModalProps {
   isOpen: boolean;
@@ -109,9 +110,35 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [customerSub, setCustomerSub] = useState<CustomerSubscription | null>(null);
+  const [hasLoadedSub, setHasLoadedSub] = useState(false);
 
   const prevInitialIdRef = React.useRef<string | undefined>(undefined);
   const prevIsOpenRef = React.useRef(false);
+
+  useEffect(() => {
+    if (formData.customer_id) {
+      getCustomerActiveSubscription(formData.customer_id).then((res) => {
+        if (res.success && res.subscription) {
+          const sub = res.subscription;
+          setCustomerSub({
+            ...sub,
+            plan_name: sub.plan_data?.name || sub.plan_name || 'Subscribed Plan',
+            remaining_days:
+              res.remaining_days ??
+              sub.remaining_days ??
+              Math.max(0, Math.ceil((new Date(sub.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
+          });
+        } else {
+          setCustomerSub(null);
+        }
+        setHasLoadedSub(true);
+      });
+    } else {
+      setCustomerSub(null);
+      setHasLoadedSub(false);
+    }
+  }, [formData.customer_id, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -193,6 +220,23 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
       return;
     }
 
+    // Validate Subscription Alignment
+    if (formData.status === 'Active' && !customerSub) {
+      alert('Cannot activate campaign: Selected customer does not have an active subscription plan. Please activate a plan first.');
+      return;
+    }
+
+    if (customerSub && formData.end_date) {
+      const campEnd = new Date(formData.end_date);
+      const planEnd = new Date(customerSub.end_date);
+      if (campEnd > planEnd) {
+        alert(
+          `Campaign end date (${formatDate(formData.end_date)}) cannot exceed customer plan expiry date (${formatDate(customerSub.end_date)}). Please select an earlier end date or extend the customer plan.`
+        );
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const sanitizedPayload = sanitizeCampaignPayload({
@@ -243,6 +287,29 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
               ✓ Pre-assigned to selected customer workspace
             </p>
           )}
+
+          {/* Customer Active Subscription Banner */}
+          {customerSub ? (
+            <div className="mt-2 p-3 bg-gradient-to-r from-amber-400/10 via-yellow-400/10 to-amber-500/10 border border-amber-400/30 rounded-xl flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2 text-amber-300">
+                <Calendar className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                <span>
+                  Active Plan: <strong>{customerSub.plan_name || 'Subscribed Plan'}</strong> • Max End Date:{' '}
+                  <strong>{formatDate(customerSub.end_date)}</strong>
+                </span>
+              </div>
+              <span className="font-bold text-amber-400 text-[11px] bg-amber-400/20 border border-amber-400/30 px-2 py-0.5 rounded-lg flex-shrink-0">
+                {customerSub.remaining_days ?? 0}d left
+              </span>
+            </div>
+          ) : hasLoadedSub && formData.customer_id ? (
+            <div className="mt-2 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center space-x-2 text-xs text-rose-300">
+              <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+              <span>
+                This customer has no active plan. Please assign or activate a plan before running campaigns.
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* Campaign Name & Slug */}
@@ -335,8 +402,14 @@ export const CampaignModal: React.FC<CampaignModalProps> = ({
             type="datetime-local"
             value={formData.end_date || ''}
             onChange={(e) => setFormData((prev) => ({ ...prev, end_date: e.target.value }))}
+            max={customerSub ? new Date(customerSub.end_date).toISOString().slice(0, 16) : undefined}
             leftIcon={<Calendar className="w-4 h-4 text-slate-400" />}
             required
+            helperText={
+              customerSub
+                ? `Max date allowed by plan: ${formatDate(customerSub.end_date)}`
+                : undefined
+            }
           />
 
           <div className="flex flex-col space-y-1.5">

@@ -32,6 +32,9 @@ const PrizesPage = lazy(() =>
 const LeadsPage = lazy(() =>
   import('@/pages/admin/LeadsPage').then((m) => ({ default: m.LeadsPage }))
 );
+const PlansPage = lazy(() =>
+  import('@/pages/admin/PlansPage').then((m) => ({ default: m.PlansPage }))
+);
 const SettingsPage = lazy(() =>
   import('@/pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 );
@@ -78,6 +81,7 @@ export function App() {
             <Route index element={<DashboardPage />} />
             <Route path="customers" element={<CustomersPage />} />
             <Route path="customers/:customerId" element={<CustomerDetailPage />} />
+            <Route path="plans" element={<PlansPage />} />
             <Route path="campaigns" element={<CampaignsPage />} />
             <Route path="prizes" element={<PrizesPage />} />
             <Route path="leads" element={<LeadsPage />} />

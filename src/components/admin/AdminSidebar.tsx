@@ -11,6 +11,7 @@ import {
   LogOut,
   ExternalLink,
   Shield,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -24,6 +25,7 @@ export const AdminSidebar: React.FC<{ onClose?: () => void }> = ({ onClose }) =>
       : customerId
       ? [{ to: `/admin/customers/${customerId}`, label: 'Customer Workspace', icon: Building2, end: false }]
       : []),
+    { to: '/admin/plans', label: 'Plans & Pricing', icon: Layers, end: false },
     { to: '/admin/campaigns', label: 'Campaigns', icon: Megaphone, end: false },
     { to: '/admin/prizes', label: 'Prize Configuration', icon: Gift, end: false },
     { to: '/admin/leads', label: 'Leads & Winners', icon: Users, end: false },

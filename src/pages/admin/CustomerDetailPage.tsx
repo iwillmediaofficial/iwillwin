@@ -10,12 +10,18 @@ import {
   uploadCampaignAsset,
   updateLeadClaimStatus,
   sanitizeCampaignPayload,
+  adminGetPlans,
+  adminAssignCustomerPlan,
+  adminExtendCustomerPlan,
+  adminSetSubscriptionStatus,
   supabase,
 } from '@/lib/supabase';
 import { CampaignModal } from '@/components/admin/CampaignModal';
 import { CustomerUserModal } from '@/components/admin/CustomerUserModal';
 import { CustomerLogo } from '@/components/admin/CustomerLogo';
 import { LeadDetailModal } from '@/components/admin/LeadDetailModal';
+import { AssignPlanModal } from '@/components/admin/AssignPlanModal';
+import { ExtendPlanModal } from '@/components/admin/ExtendPlanModal';
 import { Badge } from '@/components/common/Badge';
 import { Button } from '@/components/common/Button';
 import { formatDate, exportToCsv } from '@/lib/utils';
@@ -26,6 +32,9 @@ import type {
   Lead,
   Prize,
   ClaimStatus,
+  CustomerSubscription,
+  SubscriptionPlan,
+  SubscriptionStatus,
 } from '@/types/database';
 import {
   ArrowLeft,
@@ -51,9 +60,10 @@ import {
   Calendar,
   AlertTriangle,
   RefreshCw,
+  Layers,
 } from 'lucide-react';
 
-type TabType = 'overview' | 'campaigns' | 'leads' | 'prizes' | 'users' | 'settings';
+type TabType = 'overview' | 'campaigns' | 'leads' | 'prizes' | 'subscription' | 'users' | 'settings';
 
 export const CustomerDetailPage: React.FC = () => {
   const { customerId } = useParams<{ customerId: string }>();
@@ -107,6 +117,13 @@ export const CustomerDetailPage: React.FC = () => {
   const [updatingLeadId, setUpdatingLeadId] = useState<string | null>(null);
   const [copiedSlugId, setCopiedSlugId] = useState<string | null>(null);
 
+  // Subscription States
+  const [activeSubscription, setActiveSubscription] = useState<CustomerSubscription | null>(null);
+  const [subscriptionHistory, setSubscriptionHistory] = useState<CustomerSubscription[]>([]);
+  const [masterPlans, setMasterPlans] = useState<SubscriptionPlan[]>([]);
+  const [isAssignPlanModalOpen, setIsAssignPlanModalOpen] = useState(false);
+  const [isExtendPlanModalOpen, setIsExtendPlanModalOpen] = useState(false);
+
   // Settings Tab State
   const [settingsForm, setSettingsForm] = useState({
     company_name: '',
@@ -127,12 +144,22 @@ export const CustomerDetailPage: React.FC = () => {
     if (!customerId) return;
     setLoading(true);
     try {
-      const res = await adminGetCustomerDetail(customerId);
+      const [res, plansRes] = await Promise.all([
+        adminGetCustomerDetail(customerId),
+        adminGetPlans(),
+      ]);
+
       if (res.success && res.customer) {
         setCustomer(res.customer);
         setCampaigns(res.campaigns || []);
         setUsers(res.users || []);
         if (res.stats) setStats(res.stats);
+        setActiveSubscription(res.active_subscription || null);
+        setSubscriptionHistory(res.subscription_history || []);
+
+        if (plansRes.success) {
+          setMasterPlans(plansRes.data || []);
+        }
 
         setSettingsForm({
           company_name: res.customer.company_name || '',
@@ -158,6 +185,54 @@ export const CustomerDetailPage: React.FC = () => {
   useEffect(() => {
     fetchCustomerData();
   }, [customerId]);
+
+  // Subscription Actions
+  const handleAssignPlan = async (data: {
+    customerId: string;
+    planId: string;
+    startDate: string;
+    endDate: string;
+    maxCampaigns: number;
+    pricePaid: number;
+    notes: string;
+  }) => {
+    const res = await adminAssignCustomerPlan({
+      customerId: data.customerId,
+      planId: data.planId,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      maxCampaigns: data.maxCampaigns,
+      pricePaid: data.pricePaid,
+      notes: data.notes,
+    });
+    if (!res.success) {
+      throw new Error(res.message || 'Failed to assign plan');
+    }
+    await fetchCustomerData();
+  };
+
+  const handleExtendPlan = async (params: {
+    subscriptionId: string;
+    days?: number;
+    customEndDate?: string;
+  }) => {
+    const res = await adminExtendCustomerPlan(params);
+    if (!res.success) {
+      throw new Error(res.message || 'Failed to extend subscription');
+    }
+    await fetchCustomerData();
+  };
+
+  const handleSetSubscriptionStatus = async (status: SubscriptionStatus) => {
+    if (!activeSubscription) return;
+    if (!window.confirm(`Are you sure you want to change subscription status to "${status}"?`)) return;
+    const res = await adminSetSubscriptionStatus(activeSubscription.id, status);
+    if (!res.success) {
+      alert(res.message || 'Failed to update subscription status');
+      return;
+    }
+    await fetchCustomerData();
+  };
 
   // Fetch Leads for this customer's campaigns
   const fetchCustomerLeads = async () => {
@@ -577,10 +652,11 @@ export const CustomerDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* 6 CRM Tabs Navigation */}
+          {/* CRM Tabs Navigation */}
           <div className="flex space-x-1 sm:space-x-2 mt-6 overflow-x-auto no-scrollbar border-b border-slate-800/60 pb-px">
             {[
               { id: 'overview', label: 'Overview', icon: Building2 },
+              { id: 'subscription', label: 'Subscription & Plan', icon: Layers },
               { id: 'campaigns', label: `Campaigns (${campaigns.length})`, icon: Megaphone },
               { id: 'leads', label: 'Leads & Winners', icon: Users },
               { id: 'prizes', label: 'Prize Distribution', icon: Gift },
@@ -613,6 +689,121 @@ export const CustomerDetailPage: React.FC = () => {
         {/* ================= TAB 1: OVERVIEW ================= */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
+            {/* Active Subscription Banner / Snapshot */}
+            <div className="bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/20 border border-slate-800 hover:border-slate-700 rounded-2xl p-5 shadow-lg transition-all">
+              {activeSubscription ? (
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex items-start sm:items-center space-x-4">
+                    <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
+                      <Layers className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center space-x-2.5">
+                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                          Active Subscription Plan
+                        </span>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            activeSubscription.status === 'active'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                              : activeSubscription.status === 'suspended'
+                              ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                          }`}
+                        >
+                          {activeSubscription.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white font-display mt-0.5">
+                        {activeSubscription.plan_name || activeSubscription.plan?.name || 'Custom Plan'}
+                      </h3>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 mt-1">
+                        <span>
+                          Valid until:{' '}
+                          <strong className="text-slate-200">
+                            {formatDate(activeSubscription.end_date)}
+                          </strong>
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span>
+                          {new Date(activeSubscription.end_date) < new Date() ? (
+                            <span className="text-rose-400 font-semibold">Expired</span>
+                          ) : (
+                            <span className="text-amber-400 font-semibold">
+                              {Math.ceil(
+                                (new Date(activeSubscription.end_date).getTime() - Date.now()) /
+                                  (1000 * 60 * 60 * 24)
+                              )}{' '}
+                              days remaining
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span>
+                          Quota: <strong className="text-slate-200">{stats.active_campaigns}</strong> /{' '}
+                          {activeSubscription.max_campaigns} Active Campaigns
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center space-x-2 self-start md:self-auto">
+                    {isSuperAdmin && (
+                      <>
+                        <Button
+                          onClick={() => setIsExtendPlanModalOpen(true)}
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Clock className="w-3.5 h-3.5" />}
+                        >
+                          Extend Validity
+                        </Button>
+                        <Button
+                          onClick={() => setIsAssignPlanModalOpen(true)}
+                          variant="outline"
+                          size="sm"
+                          leftIcon={<Layers className="w-3.5 h-3.5" />}
+                        >
+                          Change Plan
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      onClick={() => setActiveTab('subscription')}
+                      variant="gold"
+                      size="sm"
+                    >
+                      Manage Plan →
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center space-x-3.5">
+                    <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-rose-400">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">No Active Subscription Plan</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        This customer does not have an active plan. Campaign creation and live promotions are restricted.
+                      </p>
+                    </div>
+                  </div>
+                  {isSuperAdmin && (
+                    <Button
+                      onClick={() => setIsAssignPlanModalOpen(true)}
+                      variant="gold"
+                      size="sm"
+                      leftIcon={<Plus className="w-4 h-4" />}
+                    >
+                      Assign Plan Now
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* KPI Ribbon */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4">
@@ -796,7 +987,322 @@ export const CustomerDetailPage: React.FC = () => {
           </div>
         )}
 
-        {/* ================= TAB 2: CAMPAIGNS ================= */}
+        {/* ================= TAB 2: SUBSCRIPTION & PLAN ================= */}
+        {activeTab === 'subscription' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-white font-display">
+                  Subscription & Validity Plan
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Manage commercial plan tier, campaign quotas, and operational validity dates.
+                </p>
+              </div>
+
+              {isSuperAdmin && (
+                <div className="flex items-center space-x-2">
+                  {activeSubscription && (
+                    <Button
+                      onClick={() => setIsExtendPlanModalOpen(true)}
+                      variant="outline"
+                      size="sm"
+                      leftIcon={<Clock className="w-4 h-4" />}
+                    >
+                      Extend Validity
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => setIsAssignPlanModalOpen(true)}
+                    variant="gold"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                  >
+                    {activeSubscription ? 'Upgrade / Switch Plan' : 'Assign Plan'}
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Active Subscription Hero Card */}
+            {activeSubscription ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+
+                <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6 pb-6 border-b border-slate-800/80">
+                  <div>
+                    <div className="flex items-center space-x-3">
+                      <span
+                        className={`text-xs font-bold px-3 py-1 rounded-full border ${
+                          activeSubscription.status === 'active'
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : activeSubscription.status === 'suspended'
+                            ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                            : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                        }`}
+                      >
+                        {activeSubscription.status.toUpperCase()}
+                      </span>
+                      <span className="text-xs text-slate-400 font-mono">
+                        Ref: {activeSubscription.id.slice(0, 8)}
+                      </span>
+                    </div>
+
+                    <h2 className="text-2xl sm:text-3xl font-extrabold text-white font-display mt-2">
+                      {activeSubscription.plan_name || activeSubscription.plan?.name || 'Custom Plan'}
+                    </h2>
+                    {(activeSubscription.plan?.description || activeSubscription.features) && (
+                      <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
+                        {activeSubscription.plan?.description || activeSubscription.features?.join(' • ')}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3">
+                    <div className="text-left lg:text-right">
+                      <div className="text-3xl font-black text-amber-400 font-display">
+                        {(activeSubscription.price_paid || 0) > 0
+                          ? `₹${(activeSubscription.price_paid || 0).toLocaleString()}`
+                          : 'Custom / Enterprise'}
+                      </div>
+                      <span className="text-[11px] text-slate-400">
+                        {activeSubscription.plan?.duration_days
+                          ? `${activeSubscription.plan.duration_days}-Day Commitment`
+                          : 'Valid Commitment'}
+                      </span>
+                    </div>
+
+                    {isSuperAdmin && (
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={activeSubscription.status}
+                          onChange={(e) =>
+                            handleSetSubscriptionStatus(e.target.value as SubscriptionStatus)
+                          }
+                          className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-400 font-semibold"
+                        >
+                          <option value="active">Status: Active</option>
+                          <option value="suspended">Status: Suspended</option>
+                          <option value="cancelled">Status: Cancelled</option>
+                          <option value="expired">Status: Expired</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Validity Timeline & Progress */}
+                {(() => {
+                  const startMs = new Date(activeSubscription.start_date).getTime();
+                  const endMs = new Date(activeSubscription.end_date).getTime();
+                  const nowMs = Date.now();
+                  const totalSpan = Math.max(1, endMs - startMs);
+                  const elapsedSpan = Math.max(0, Math.min(totalSpan, nowMs - startMs));
+                  const progressPct = Math.round((elapsedSpan / totalSpan) * 100);
+                  const isExpired = nowMs >= endMs;
+                  const daysRemaining = Math.max(0, Math.ceil((endMs - nowMs) / (1000 * 60 * 60 * 24)));
+
+                  return (
+                    <div className="py-6 border-b border-slate-800/80 space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-2 text-slate-400">
+                          <Calendar className="w-4 h-4 text-amber-400" />
+                          <span>
+                            Started: <strong className="text-white">{formatDate(activeSubscription.start_date)}</strong>
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Clock className="w-4 h-4 text-amber-400" />
+                          <span>
+                            Expires:{' '}
+                            <strong className={isExpired ? 'text-rose-400' : 'text-white'}>
+                              {formatDate(activeSubscription.end_date)}
+                            </strong>
+                          </span>
+                          <span
+                            className={`font-bold ml-2 px-2.5 py-0.5 rounded-full text-[11px] ${
+                              isExpired
+                                ? 'bg-rose-500/10 text-rose-400'
+                                : daysRemaining < 15
+                                ? 'bg-amber-500/10 text-amber-400'
+                                : 'bg-emerald-500/10 text-emerald-400'
+                            }`}
+                          >
+                            {isExpired ? 'EXPIRED' : `${daysRemaining} Days Left`}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="w-full bg-slate-950 rounded-full h-3 border border-slate-800 overflow-hidden">
+                        <div
+                          className={`h-full transition-all rounded-full ${
+                            isExpired
+                              ? 'bg-rose-500'
+                              : progressPct > 85
+                              ? 'bg-gradient-to-r from-amber-500 to-rose-500'
+                              : 'bg-gradient-to-r from-amber-500 to-emerald-400'
+                          }`}
+                          style={{ width: `${Math.min(100, Math.max(2, progressPct))}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Quota & Feature Grid */}
+                <div className="pt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Campaigns Allocated
+                    </span>
+                    <div className="text-xl font-bold text-white font-display mt-1">
+                      {stats.active_campaigns} / {activeSubscription.max_campaigns}
+                    </div>
+                    <div className="w-full bg-slate-800 rounded-full h-1.5 mt-2 overflow-hidden">
+                      <div
+                        className="bg-amber-400 h-full rounded-full"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((stats.active_campaigns / activeSubscription.max_campaigns) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Leads / Scratch Capacity
+                    </span>
+                    <div className="text-xl font-bold text-purple-400 font-display mt-1">
+                      {stats.total_leads.toLocaleString()} / {(activeSubscription.max_leads || 5000).toLocaleString()}
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Guaranteed server capacity
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Branding & Subdomain
+                    </span>
+                    <div className="text-base font-bold text-white mt-1 flex items-center space-x-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>Custom Logo & URLs</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Full white-label game experience
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                      Enforcement Strictness
+                    </span>
+                    <div className="text-base font-bold text-emerald-400 mt-1 flex items-center space-x-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                      <span>Postgres Trigger Guard</span>
+                    </div>
+                    <span className="text-[10px] text-slate-500 mt-1 block">
+                      Dates clamped to plan validity
+                    </span>
+                  </div>
+                </div>
+
+                {activeSubscription.notes && (
+                  <div className="mt-6 p-4 bg-slate-950/40 rounded-xl border border-slate-800/60 text-xs text-slate-400">
+                    <strong className="text-slate-300">Contract / Operational Notes: </strong>
+                    {activeSubscription.notes}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center flex flex-col items-center">
+                <Layers className="w-12 h-12 text-slate-600 mb-3" />
+                <h4 className="text-base font-bold text-white mb-1">No Active Subscription</h4>
+                <p className="text-xs text-slate-400 mb-5 max-w-md">
+                  This customer currently has no active subscription. Assign a plan from the master catalog to enable campaigns and set validity boundaries.
+                </p>
+                {isSuperAdmin && (
+                  <Button
+                    onClick={() => setIsAssignPlanModalOpen(true)}
+                    variant="gold"
+                    size="sm"
+                    leftIcon={<Plus className="w-4 h-4" />}
+                  >
+                    Assign Subscription Plan
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Subscription History */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-lg mt-8">
+              <div className="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-bold text-white font-display">Subscription History & Audit</h4>
+                  <p className="text-xs text-slate-400">Record of all past, extended, or expired plans for this customer.</p>
+                </div>
+              </div>
+
+              {subscriptionHistory.length === 0 ? (
+                <div className="p-12 text-center text-slate-500 text-xs">
+                  No subscription history records found.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 uppercase tracking-wider font-semibold">
+                        <th className="py-3 px-4">Plan Name</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Start Date</th>
+                        <th className="py-3 px-4">End Date</th>
+                        <th className="py-3 px-4">Quota</th>
+                        <th className="py-3 px-4">Price</th>
+                        <th className="py-3 px-4">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {subscriptionHistory.map((sub) => (
+                        <tr key={sub.id} className="hover:bg-slate-800/30 transition-colors text-slate-300">
+                          <td className="py-3 px-4 font-bold text-white">
+                            {sub.plan_name || sub.plan?.name || 'Custom Plan'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                sub.status === 'active'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                                  : sub.status === 'suspended'
+                                  ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                                  : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                              }`}
+                            >
+                              {sub.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-slate-400">{formatDate(sub.start_date)}</td>
+                          <td className="py-3 px-4 text-slate-400">{formatDate(sub.end_date)}</td>
+                          <td className="py-3 px-4 text-slate-400">
+                            {sub.max_campaigns || 1} camps / {(sub.max_leads || 5000).toLocaleString()} leads
+                          </td>
+                          <td className="py-3 px-4 font-mono text-amber-400">
+                            {(sub.price_paid || 0) > 0 ? `₹${(sub.price_paid || 0).toLocaleString()}` : 'Free'}
+                          </td>
+                          <td className="py-3 px-4 text-slate-400 truncate max-w-xs">{sub.notes || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ================= TAB 3: CAMPAIGNS ================= */}
         {activeTab === 'campaigns' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -1682,6 +2188,24 @@ export const CustomerDetailPage: React.FC = () => {
         lead={selectedLead}
         onToggleClaimStatus={handleToggleClaimStatus}
         isUpdatingClaim={Boolean(updatingLeadId)}
+      />
+
+      {/* Assign Plan Modal */}
+      <AssignPlanModal
+        isOpen={isAssignPlanModalOpen}
+        onClose={() => setIsAssignPlanModalOpen(false)}
+        customer={customer}
+        plans={masterPlans}
+        onAssign={handleAssignPlan}
+      />
+
+      {/* Extend Plan Modal */}
+      <ExtendPlanModal
+        isOpen={isExtendPlanModalOpen}
+        onClose={() => setIsExtendPlanModalOpen(false)}
+        customerName={customer.company_name}
+        subscription={activeSubscription}
+        onExtend={handleExtendPlan}
       />
     </div>
   );

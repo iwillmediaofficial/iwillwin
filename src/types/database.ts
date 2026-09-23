@@ -34,6 +34,50 @@ export interface CustomerUser {
   created_at: string;
 }
 
+export type SubscriptionStatus = 'active' | 'expired' | 'pending' | 'suspended' | 'cancelled';
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  duration_days: number;
+  price: number;
+  currency: string;
+  max_campaigns: number;
+  max_leads: number;
+  features: string[];
+  is_active: boolean;
+  display_order: number;
+  active_subscribers_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerSubscription {
+  id: string;
+  customer_id: string;
+  plan_id: string;
+  status: SubscriptionStatus;
+  start_date: string;
+  end_date: string;
+  max_campaigns: number;
+  max_leads: number;
+  price_paid: number;
+  price?: number;
+  notes: string | null;
+  assigned_by?: string | null;
+  activated_at?: string | null;
+  created_at: string;
+  updated_at?: string;
+  plan_name?: string;
+  plan_slug?: string;
+  features?: string[];
+  remaining_days?: number;
+  plan_data?: SubscriptionPlan;
+  plan?: SubscriptionPlan;
+}
+
 export interface CustomerDetailData {
   customer: Customer;
   campaigns: (Campaign & {
@@ -49,6 +93,8 @@ export interface CustomerDetailData {
     total_winners: number;
     total_prizes_remaining: number;
   };
+  active_subscription?: CustomerSubscription | null;
+  subscription_history?: CustomerSubscription[];
 }
 
 export interface Campaign {

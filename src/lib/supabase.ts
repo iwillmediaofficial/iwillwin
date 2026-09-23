@@ -5,6 +5,9 @@ import type {
   ClientUserItem,
   CustomerWithStats,
   CustomerDetailData,
+  SubscriptionPlan,
+  CustomerSubscription,
+  SubscriptionStatus,
 } from '@/types/database';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://rowuebmnqurugubichta.supabase.co';
@@ -143,6 +146,8 @@ export async function adminGetCustomerDetail(customerId: string): Promise<{
   campaigns?: CustomerDetailData['campaigns'];
   users?: CustomerDetailData['users'];
   stats?: CustomerDetailData['stats'];
+  active_subscription?: CustomerDetailData['active_subscription'];
+  subscription_history?: CustomerDetailData['subscription_history'];
   message?: string;
 }> {
   try {
@@ -504,5 +509,198 @@ export function sanitizeCampaignPayload<T extends Record<string, any>>(data: T):
     }
   }
   return sanitized as Partial<Campaign>;
+}
+
+/**
+ * Fetch all master subscription plans
+ */
+export async function adminGetPlans(): Promise<{
+  success: boolean;
+  data?: SubscriptionPlan[];
+  message?: string;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('admin_get_plans');
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error fetching plans:', err);
+    return { success: false, message: err.message || 'Failed to fetch plans.' };
+  }
+}
+
+/**
+ * Create a new master subscription plan
+ */
+export async function adminCreatePlan(plan: {
+  name: string;
+  slug: string;
+  description?: string;
+  duration_days: number;
+  price: number;
+  currency?: string;
+  max_campaigns?: number;
+  max_leads?: number;
+  features?: string[];
+  is_active?: boolean;
+  display_order?: number;
+}): Promise<{ success: boolean; data?: SubscriptionPlan; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_create_plan', {
+      p_name: plan.name,
+      p_slug: plan.slug,
+      p_description: plan.description || '',
+      p_duration_days: plan.duration_days,
+      p_price: plan.price,
+      p_currency: plan.currency || 'INR',
+      p_max_campaigns: plan.max_campaigns ?? 1,
+      p_max_leads: plan.max_leads ?? 1000,
+      p_features: plan.features || [],
+      p_is_active: plan.is_active ?? true,
+      p_display_order: plan.display_order ?? 0,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error creating plan:', err);
+    return { success: false, message: err.message || 'Failed to create plan.' };
+  }
+}
+
+/**
+ * Update an existing master subscription plan
+ */
+export async function adminUpdatePlan(
+  id: string,
+  plan: {
+    name: string;
+    slug: string;
+    description?: string;
+    duration_days: number;
+    price: number;
+    currency?: string;
+    max_campaigns?: number;
+    max_leads?: number;
+    features?: string[];
+    is_active?: boolean;
+    display_order?: number;
+  }
+): Promise<{ success: boolean; data?: SubscriptionPlan; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_update_plan', {
+      p_id: id,
+      p_name: plan.name,
+      p_slug: plan.slug,
+      p_description: plan.description || '',
+      p_duration_days: plan.duration_days,
+      p_price: plan.price,
+      p_currency: plan.currency || 'INR',
+      p_max_campaigns: plan.max_campaigns ?? 1,
+      p_max_leads: plan.max_leads ?? 1000,
+      p_features: plan.features || [],
+      p_is_active: plan.is_active ?? true,
+      p_display_order: plan.display_order ?? 0,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error updating plan:', err);
+    return { success: false, message: err.message || 'Failed to update plan.' };
+  }
+}
+
+/**
+ * Assign or change a customer's active plan subscription
+ */
+export async function adminAssignCustomerPlan(params: {
+  customerId: string;
+  planId: string;
+  startDate?: string;
+  endDate?: string;
+  maxCampaigns?: number;
+  pricePaid?: number;
+  notes?: string;
+}): Promise<{ success: boolean; data?: CustomerSubscription; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_assign_customer_plan', {
+      p_customer_id: params.customerId,
+      p_plan_id: params.planId,
+      p_start_date: params.startDate || null,
+      p_end_date: params.endDate || null,
+      p_max_campaigns: params.maxCampaigns ?? null,
+      p_price_paid: params.pricePaid ?? null,
+      p_notes: params.notes || null,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error assigning customer plan:', err);
+    return { success: false, message: err.message || 'Failed to assign plan.' };
+  }
+}
+
+/**
+ * Extend a customer's subscription validity
+ */
+export async function adminExtendCustomerPlan(params: {
+  subscriptionId: string;
+  days?: number;
+  customEndDate?: string;
+}): Promise<{ success: boolean; data?: CustomerSubscription; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_extend_customer_plan', {
+      p_subscription_id: params.subscriptionId,
+      p_days: params.days ?? 30,
+      p_custom_end_date: params.customEndDate || null,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error extending customer plan:', err);
+    return { success: false, message: err.message || 'Failed to extend plan.' };
+  }
+}
+
+/**
+ * Set customer subscription status (active, suspended, cancelled)
+ */
+export async function adminSetSubscriptionStatus(
+  subscriptionId: string,
+  status: SubscriptionStatus
+): Promise<{ success: boolean; data?: CustomerSubscription; message?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('admin_set_subscription_status', {
+      p_subscription_id: subscriptionId,
+      p_status: status,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error updating subscription status:', err);
+    return { success: false, message: err.message || 'Failed to update subscription status.' };
+  }
+}
+
+/**
+ * Fetch a customer's active subscription, remaining days, and campaign quota usage
+ */
+export async function getCustomerActiveSubscription(customerId: string): Promise<{
+  success: boolean;
+  has_active_plan?: boolean;
+  subscription?: CustomerSubscription;
+  active_campaigns_count?: number;
+  remaining_days?: number;
+  message?: string;
+}> {
+  try {
+    const { data, error } = await supabase.rpc('get_customer_active_subscription', {
+      p_customer_id: customerId,
+    });
+    if (error) throw error;
+    return data || { success: false, message: 'No response from server.' };
+  } catch (err: any) {
+    console.error('Error fetching customer active subscription:', err);
+    return { success: false, message: err.message || 'Failed to fetch subscription.' };
+  }
 }
 
